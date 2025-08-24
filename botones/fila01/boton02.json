@@ -1,0 +1,7 @@
+{
+    "name": "Mi boton 2 - FILA 1",
+    "opciones": [
+        { "opcion": "F1_B2_op1", "url": "http://f1_b2_opcion1.com" },
+        { "opcion": "F1_B2_op2 ", "url": "http://f1_b2_opcion2.com" }
+    ]
+}

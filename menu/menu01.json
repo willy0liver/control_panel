@@ -1,0 +1,18 @@
+{
+    "nombre": "Menu 01",
+    "otro": "Otro valor",
+    "paginas": [
+        {
+            "icono": "14",
+            "name": "_JXON",
+            "pagina": "https://github.com/TheArkive/JXON_ahk2/blob/master/_JXON.ahk",
+            "separador": "s"
+        },
+        {
+            "icono": "14",
+            "name": "Control Panel",
+            "pagina": "https://github.com/willy0liver/control_panel/blob/main/README.md#31-men%C3%BA-principal",
+            "separador": "N"
+        }
+    ]
+}

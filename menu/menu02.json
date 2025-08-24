@@ -1,0 +1,18 @@
+{
+    "nombre": "Menu 02",    
+    "otro": "Otro valor",
+    "paginas": [
+        {
+            "icono": "14",
+            "name": "_JXON",
+            "pagina": "https://github.com/TheArkive/JXON_ahk2/blob/master/_JXON.ahk",
+            "separador": "N"
+        },
+        {
+            "icono": "4",
+            "name": "Python",
+            "pagina": "D:\\Cursos\\Python 2023 - Soy Dalto\\01. PY Carpeta Inicial",
+            "separador": "N"
+        }
+    ]
+}
