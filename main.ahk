@@ -4,6 +4,8 @@
 #Include Assets\MenuTips.ahk
 #Include Assets\Utiles.ahk
 #Include Assets\ButtonsUI.ahk 
+#Include Assets\ButtonColors.ahk   ; <<< NUEVO
+#Include Assets\Theme.ahk          ; <<< Opcional (si lo usas)
 
 CoordMode("Menu", "Screen")
 ;===========================================================
@@ -42,6 +44,7 @@ global gBuilt := false
         gGui := Gui("+AlwaysOnTop", "Panel dinámico")
         BuildMenuBar()
         MenuTips_Init()      ; Tooltips en ítems de menú
+        BtnColor_Init()      ; <<< NUEVO: activa coloración de botones
         BuildUI()            ; Construye filas/títulos/botones/menús
         gBuilt := true
     }

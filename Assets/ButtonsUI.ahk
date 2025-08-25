@@ -59,6 +59,21 @@ BuildUI() {
 
             btn := gGui.Add("Button", "x" curX " y" curY " w" btnW " h" btnH, btnText)
 
+            ;fgHex := SafeTrim(GetKey(data, "fgColor")) ; por ejemplo "FF0000"
+            ;bgHex := SafeTrim(GetKey(data, "bgColor")) ; por ejemplo "333333"
+            fgHex := "FF0000"
+            bgHex := "333333"
+            ; Aplicar colores (usa Theme por defecto o los que quieras)
+            if (fgHex != "" || bgHex != "") {
+                ; Convierte “RRGGBB” a número (0xRRGGBB)
+                toRGB := (s) => ("0x" . RegExReplace(s, "^[#]", ""))
+                fg := (fgHex != "" ? toRGB(fgHex) : THEME_BTN_FG)
+                bg := (bgHex != "" ? toRGB(bgHex) : THEME_BTN_BG)
+                BtnColor_Apply(btn, fg, bg)
+            } else {
+                BtnColor_Apply(btn, THEME_BTN_FG, THEME_BTN_BG)
+            }
+
             ; Menú y tooltips por ítem
             m := Menu()
             tips := []
