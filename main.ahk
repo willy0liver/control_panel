@@ -18,12 +18,12 @@ CoordMode("Menu", "Screen")
 dataDir := A_ScriptDir "\botones"
 pattern := "boton*.json"
 startX := 10
-stepX  := 200
+stepX  := 170
 yPos   := 20
-btnW   := 180
-btnH   := 60
+btnW   := 150
+btnH   := 30
 maxRowWidth := 800
-gapY        := 20
+gapY        := 10
 
 ;----------------------
 ; Estado global
