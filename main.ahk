@@ -44,7 +44,6 @@ global gBuilt := false
         gGui := Gui("+AlwaysOnTop", "Panel dinámico")
         BuildMenuBar()
         MenuTips_Init()      ; Tooltips en ítems de menú
-        BtnColor_Init()      ; <<< NUEVO: activa coloración de botones
         BuildUI()            ; Construye filas/títulos/botones/menús
         gBuilt := true
     }
