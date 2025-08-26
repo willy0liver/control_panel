@@ -105,7 +105,6 @@ _EnsureColors(c) {
     return colors
 }
 
-
 _WM_DRAWITEM(wParam, lParam, *) {
     hwndItem := NumGet(lParam, 24, "ptr")
     hDC      := NumGet(lParam, 32, "ptr")
@@ -119,28 +118,28 @@ _WM_DRAWITEM(wParam, lParam, *) {
     ODS_SELECTED := 0x0001
     ODS_FOCUS    := 0x0010
     ODS_DISABLED := 0x0004
-    ODS_HOTLIGHT := 0x0040
+    ; ODS_HOTLIGHT := 0x0040  ; opcional
 
-    isHot := _HoverStore().Get(hwndItem, false)  ; <<< NUEVO
+    ; <<< ÚNICO CAMBIO IMPORTANTE AQUÍ:
+    isHot := (_GetHotBtn() = hwndItem)
+
     bg := colors.bg
     if (state & ODS_SELECTED)
         bg := colors.downBg
-    else if (isHot || (state & ODS_HOTLIGHT))    ; <<< NUEVO
+    else if (isHot) ; o (state & ODS_HOTLIGHT)
         bg := colors.hotBg
     if (state & ODS_DISABLED)
         bg := _Blend(bg, 0xFFFFFF, 0.50)
 
     _FillRect(hDC, rc, _BGR(bg))
     _FrameRect(hDC, rc, _BGR(colors.border))
-
     txt := _GetWindowText(hwndItem)
     _DrawCenteredText(hDC, rc, txt, _BGR(colors.fg))
-
     if (state & ODS_FOCUS)
         DllCall("user32\DrawFocusRect", "ptr", hDC, "ptr", rc)
-
     return 1
 }
+
 
 
 ; --- Helpers GDI -------------------------------------------------------
@@ -199,31 +198,55 @@ _InitHoverHooks() {
     done := true
 }
 
+_HoverState() {
+    static s := { hot: 0 }
+    return s
+}
+
+_GetHotBtn() {
+    return _HoverState().hot
+}
+
+_SetHotBtn(newHot) {
+    s := _HoverState()
+    if (s.hot = newHot)
+        return
+    old := s.hot
+    s.hot := newHot
+
+    if (old)
+        DllCall("user32\InvalidateRect", "ptr", old, "ptr", 0, "int", true)
+    if (newHot) {
+        DllCall("user32\InvalidateRect", "ptr", newHot, "ptr", 0, "int", true)
+        _TrackMouseLeave(newHot)
+    }
+}
+
 _HoverStore() {
     static m := Map()  ; hwnd -> true (hot) / ausente (no hot)
     return m
 }
 
 _WM_MOUSEMOVE_HOVER(wParam, lParam, msg, hwnd) {
-    if !_BtnStore().Has(hwnd)
+    ; Detectar SIEMPRE el control real bajo el cursor
+    MouseGetPos ,, &winHwnd, &ctrlHwnd, 2
+    target := ctrlHwnd ? ctrlHwnd : 0
+
+    ; Si no hay control o no es un botón coloreado, no hacemos nada
+    if !target || !_BtnStore().Has(target)
         return
-    hot := _HoverStore()
-    if !hot.Get(hwnd, false) {
-        hot[hwnd] := true
-        DllCall("user32\InvalidateRect", "ptr", hwnd, "ptr", 0, "int", true)
-        _TrackMouseLeave(hwnd)
-        _HoverTimer_Start()          ; <<< NUEVO: enciende el timer de vigilancia
+
+    ; Si cambió el hot, actualizar (esto repinta el anterior y el nuevo)
+    if (_GetHotBtn() != target) {
+        _SetHotBtn(target)
     }
 }
 
+
 _WM_MOUSELEAVE_HOVER(wParam, lParam, msg, hwnd) {
-    if !_BtnStore().Has(hwnd)
-        return
-    hot := _HoverStore()
-    if hot.Has(hwnd) {
-        hot.Delete(hwnd)
-        DllCall("user32\InvalidateRect", "ptr", hwnd, "ptr", 0, "int", true)
-        _HoverTimer_StopIfNone()     ; <<< NUEVO: apaga el timer si ya no hay “hot”
+    ; Si el que deja de tener el mouse es el actual hot, lo limpiamos
+    if (_GetHotBtn() = hwnd) {
+        _SetHotBtn(0)
     }
 }
 
@@ -233,46 +256,6 @@ _TrackMouseLeave(hwnd) {
     NumPut("UInt", size,       tme, 0)
     NumPut("UInt", 0x00000002, tme, 4)             ; TME_LEAVE
     NumPut("Ptr",  hwnd,       tme, 8)
-    NumPut("UInt", 0,          tme, 8 + A_PtrSize) ; dwHoverTime
+    NumPut("UInt", 0,          tme, 8 + A_PtrSize) ; hoverTime
     DllCall("user32\TrackMouseEvent", "ptr", tme)
-}
-
-_HoverTimer_Start() {
-    static on := false
-    if on
-        return
-    on := true
-    SetTimer(_HoverTimer_Tick, 50)  ; 20 fps: suave sin cargar CPU
-}
-
-_HoverTimer_StopIfNone() {
-    static on := false
-    if _HoverStore().Count = 0 {
-        SetTimer(_HoverTimer_Tick, 0)
-        on := false
-    }
-}
-
-_HoverTimer_Tick(*) {
-    hot := _HoverStore()
-    if hot.Count = 0 {
-        _HoverTimer_StopIfNone()
-        return
-    }
-    ; Obtener HWND bajo el cursor (pantalla)
-    pt := Buffer(8, 0)
-    DllCall("user32\GetCursorPos", "ptr", pt)
-    pt64 := NumGet(pt, 0, "int64")
-    hwndUnder := DllCall("user32\WindowFromPoint", "int64", pt64, "ptr")
-
-    ; Si el cursor ya NO está sobre alguno de nuestros botones “hot”, apágalo
-    for hwndBtn, _ in hot.Clone() {       ; Clone(): evitamos modificar mientras iteramos
-        if (hwndBtn != hwndUnder) {
-            hot.Delete(hwndBtn)
-            DllCall("user32\InvalidateRect", "ptr", hwndBtn, "ptr", 0, "int", true)
-        }
-    }
-    ; Si ya no quedan botones en hot, apagamos el timer
-    if hot.Count = 0
-        _HoverTimer_StopIfNone()
 }
