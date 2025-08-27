@@ -46,18 +46,18 @@ _BuildGui() {
 
     ; -------- Pestaña: Pendientes --------
     tabs.UseTab("Pendientes")
-    ;gLV_Pend := gTasksGui.Add("ListView", "x20 y50 w750 h370 Grid", "Título|Trigger|Acción|Proc.|Creada")
     gLV_Pend := gTasksGui.Add(
         "ListView"
     , "x20 y50 w750 h370 Grid"
-    , ["Título","Trigger","Acción","Proc.","Creada"]
+    , ["Título","Trigger","Acción","Proc.","Creada","__id__"]  ; <-- col 6 oculta
     )
-    ; (opcional) ajustar anchos
     gLV_Pend.ModifyCol(1, 250)
     gLV_Pend.ModifyCol(2, 140)
     gLV_Pend.ModifyCol(3, 140)
-    gLV_Pend.ModifyCol(4, 60)     ; Proc.
-    gLV_Pend.ModifyCol(5, 160)    ; Creada
+    gLV_Pend.ModifyCol(4, 60)
+    gLV_Pend.ModifyCol(5, 160)
+    gLV_Pend.ModifyCol(6, 0)  ; <-- oculta id
+
 
     btnAdd   := gTasksGui.Add("Button", "x20  y430 w100", "Nueva")
     btnEdit  := gTasksGui.Add("Button", "x130 y430 w100", "Editar")
@@ -104,87 +104,137 @@ _RefreshPending() {
     for t in TasksStore_All() {
         if t.completed
             continue
-        gLV_Pend.Add("", t.title, _TriggerText(t), _ActionText(t), (t.inProgress ? "Sí" : "No"), t.createdAt)
-        ; Guardar el id en el último item
-        row := gLV_Pend.GetCount()
-        gLV_Pend.SetText(row, t.id)  ; truco: guardarlo fuera de columnas visibles
+        gLV_Pend.Add(
+            ""
+        , t.title
+        , _TriggerText(t)
+        , _ActionText(t)
+        , (t.inProgress ? "Sí" : "No")
+        , t.createdAt
+        , t.id                 ; <-- columna 6 (oculta)
+        )
     }
 }
 
 _GetSelectedId() {
     global gLV_Pend
     row := gLV_Pend.GetNext(0, "F")
-    if !row
-        return ""
-    ; el texto “invisible” lo guardamos con SetText(row, id) -> lo leemos con GetText(row)
-    id := gLV_Pend.GetText(row)   ; devuelve el "item text" del row (col 0)
-    return id
+    return row ? gLV_Pend.GetText(row, 6) : ""   ; <-- lee col 6
 }
 
 _NewTaskDialog(editId := "") {
-    global gTasksGui   ; para poner la ventana de Tareas como dueña del diálogo
+    global gTasksGui
 
     isEdit := (editId != "")
     t := isEdit
         ? _CloneTask(_Find(editId))
         : { title:"", trigger:{type:"off"}, action:{type:"openUrl",value:""}, inProgress:false, completed:false, completedAt:"" }
 
-    ; ⬇️ RENOMBRAR 'gui' -> 'dlg' y fijar el Owner explícito
     title := isEdit ? "Editar Tarea" : "Nueva Tarea"
     dlg := Gui("+Owner" gTasksGui.Hwnd, title)
-
     dlg.OnEvent("Close", (*)  => dlg.Destroy())
     dlg.OnEvent("Escape", (*) => dlg.Destroy())
 
-    ; --- Controles (mantén tu layout actual, solo cambia 'gui.' por 'dlg.') ---
+    ; ---- Título ---------------------------------------------------------
     dlg.Add("Text",, "Título:")
-    edTitle := dlg.Add("Edit", "w320", t.title)
+    edTitle := dlg.Add("Edit", "w360", t.title)
 
-    ; ... (todo lo que tenías: radios/edits del trigger, acción, etc.)
-    ; ejemplo:
-    ; grpTrig := dlg.Add("GroupBox", "x+20 w320 h120", "Trigger")
-    ; rOff   := dlg.Add("Radio", "xp+10 yp+20", "Off")
-    ; rTime  := dlg.Add("Radio", "x+10 yp", "Hora")
-    ; rEvery := dlg.Add("Radio", "x+10 yp", "Intervalo")
-    ; ...
+    ; ---- Trigger --------------------------------------------------------
+    dlg.Add("GroupBox", "xm w360 h95", "Trigger")
+    ddTrig := dlg.Add("DropDownList", "xp+10 yp+20 w120", ["off","at","interval"])
+    edTime := dlg.Add("Edit", "x+10 w90",  (t.trigger.type="at") ? (t.trigger.Has("time")    ? t.trigger.time    : "") : "")
+    edMins := dlg.Add("Edit", "x+10 w70 Number", (t.trigger.type="interval") ? (t.trigger.Has("minutes") ? t.trigger.minutes : "") : "")
 
-    ; Botones
-    btnSave := dlg.Add("Button", "w90", "Guardar")
+    ; elegir trigger inicial
+    ddTrig.Choose( (t.trigger.type="interval") ? 3 : (t.trigger.type="at") ? 2 : 1 )
+
+    ToggleTrigFields(*) {
+        if (ddTrig.Text = "at") {
+            edTime.Visible := true
+            edMins.Visible := false
+        } else if (ddTrig.Text = "interval") {
+            edTime.Visible := false
+            edMins.Visible := true
+        } else {
+            edTime.Visible := false
+            edMins.Visible := false
+        }
+    }
+    ddTrig.OnEvent("Change", ToggleTrigFields)
+    ToggleTrigFields()
+
+    ; ---- Acción ---------------------------------------------------------
+    dlg.Add("GroupBox", "xm w360 h95", "Acción")
+    ddAct := dlg.Add("DropDownList", "xp+10 yp+20 w120", ["openUrl","run","sendText","ahk"])
+    edVal := dlg.Add("Edit", "x+10 w220", t.action.Has("value") ? t.action.value : "")
+
+    actIdx := 1, aType := t.action.type
+    if (aType="run")
+        actIdx := 2
+    else
+        if (aType="sendText")
+            actIdx := 3
+        else
+            if (aType="ahk")
+                actIdx := 4
+    ddAct.Choose(actIdx)
+
+    ; ---- Estado ---------------------------------------------------------
+    chkInProgress := dlg.Add("CheckBox", "xm w200", "En proceso")
+    chkInProgress.Value := t.inProgress ? 1 : 0
+
+    ; ---- Botones --------------------------------------------------------
+    btnSave := dlg.Add("Button", "xm w100", "Guardar")
     btnSave.OnEvent("Click", SaveAndClose)
-
-    btnCancel := dlg.Add("Button", "x+m w90", "Cancelar")
+    btnCancel := dlg.Add("Button", "x+m w100", "Cancelar")
     btnCancel.OnEvent("Click", (*) => dlg.Destroy())
 
     dlg.Show()
 
+    ; ---- Helpers locales (cierran sobre los controles) ------------------
+    _UiReadTrigger() {
+        typ := ddTrig.Text
+        if (typ = "off")
+            return { type:"off" }
+        if (typ = "at")
+            return { type:"at", time: Trim(edTime.Value) }
+        ; interval
+        mins := Integer(Trim(edMins.Value))
+        if (mins < 1)
+            mins := 1
+        return { type:"interval", minutes: mins }
+    }
+
+    _UiReadAction() {
+        return { type: ddAct.Text, value: Trim(edVal.Value) }
+    }
+
     SaveAndClose(*) {
-        ; 1) Armar objeto tarea desde controles
         t := {
-            id: (isEdit ? editId : ""),               ; si es nueva, el Store le pondrá id
-            title: Trim(edTitle.Value),
-            trigger: _UiReadTrigger(),                ; tu helper que lee tipo/valor del trigger
-            action:  _UiReadAction(),                 ; idem para acción
-            inProgress: chkInProgress.Value = 1,
-            completed: false,
-            completedAt: ""
+            id: (isEdit ? editId : "")
+          , title: Trim(edTitle.Value)
+          , trigger: _UiReadTrigger()
+          , action: _UiReadAction()
+          , inProgress: chkInProgress.Value = 1
+          , completed: false
+          , completedAt: ""
         }
 
-        ; 2) Validación mínima
         if (t.title = "") {
             MsgBox("El título no puede estar vacío.", "Validación", "Icon!")
             return
         }
 
-        ; 3) Persistir (add/update) y refrescar UI
         if (isEdit)
             TasksStore_Update(editId, t)
         else
             TasksStore_Add(t)
 
-        _RefreshAll()           ; vuelve a pintar Pendientes / Completadas
-        dlg.Destroy()           ; 4) recién ahora cerramos el diálogo
+        _RefreshAll()
+        dlg.Destroy()
     }
 }
+
 
 _SaveTaskDialog(gui, edTitle, ddTrig, edT, ddAct, edVal, cbInProg, isEdit, editId) {
     title := Trim(edTitle.Text)
@@ -359,7 +409,9 @@ _RefreshCompleted() {
     for d in dates {
         gTasksGui.Add("Text", "x20 y" y " w740 +0x200", "Fecha: " d) ; +0x200 = SS_CENTERIMAGE
         y += 22
-        lv := gTasksGui.Add("ListView", "x20 y" y " w750 h100 Grid", "Hora|Título")
+        ;lv := gTasksGui.Add("ListView", "x20 y" y " w750 h100 Grid", "Hora|Título")
+        lv := gTasksGui.Add("ListView", "x20 y" y " w750 h100 Grid", ["Hora","Título"])
+
         lv.ModifyCol(1, 120), lv.ModifyCol(2, 600)
 
         ; rellenar esa fecha
