@@ -1,0 +1,5 @@
+# Ignorar todo dentro de /botones
+/botones/*
+
+# …pero mantener un marcador vacío para que la carpeta exista en el repo
+!/botones/.gitkeep

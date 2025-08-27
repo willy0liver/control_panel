@@ -55,11 +55,15 @@ BuildUI() {
             }
 
             btnText  := GetJsonNameOrFile(data, filePath)
+            btnColor  := GetJsonColorOrFile(data, filePath)            
             opciones := GetJsonOpciones(data)
 
             btn := gGui.Add("Button", "x" curX " y" curY " w" btnW " h" btnH, btnText)
+            if (btnColor != "")
+                BtnColors_Apply(btn, btnColor)   ; <<< NUEVO: aplicar color al botón
+            
             ; Formar de poner color al botón
-            BtnColors_Apply(btn, "primary")   ; o "primary", "success", etc.
+            ;BtnColors_Apply(btn, "red-50")   ; o "primary", "success", etc.
             ;BtnColors_ApplyCustom(btn, { bg:0x222222, fg:0xFFFFFF, border:0x666666, hotBg:0x333333, downBg:0x111111 })
             ; o
             ;BtnColors_ApplyRGB(btn, 0xF97316)                ; sólo fondo; el resto se calcula

@@ -12,7 +12,107 @@ class BtnThemes {
     static map := Map(
         "default", { bg:0xF3F4F6, fg:0x111111, border:0xCBD5E1, hotBg:0xE8F2FF, downBg:0xD1E9FF },
         "primary", { bg:0x2563EB, fg:0xFFFFFF, border:0x1E40AF, hotBg:0x3B82F6, downBg:0x1D4ED8 },
-        "success", { bg:0x10B981, fg:0x0B0B0B, border:0x0E9F6E, hotBg:0x34D399, downBg:0x059669 }
+        "success", { bg:0x10B981, fg:0x0B0B0B, border:0x0E9F6E, hotBg:0x34D399, downBg:0x059669 },
+        "danger", { bg:0xDC2626, fg:0xFFFFFF, border:0x991B1B, hotBg:0xEF4444, downBg:0xB91C1C },
+        "warning", { bg:0xF59E0B, fg:0x111111, border:0xB45309, hotBg:0xFBBF24, downBg:0xD97706 },
+        "info", { bg:0x3B82F6, fg:0xFFFFFF, border:0x1E40AF, hotBg:0x60A5FA, downBg:0x2563EB },
+        "light", { bg:0xF9FAFB, fg:0x111111, border:0xE5E7EB, hotBg:0xFFFFFF, downBg:0xD1D5DB },
+        "dark", { bg:0x1F2937, fg:0xFFFFFF, border:0x111827, hotBg:0x374151, downBg:0x1E293B },
+        ; Escalas de grises
+        "gray-50", { bg:0xFAFAFA, fg:0x111111, border:0xE5E5E5, hotBg:0xFFFFFF, downBg:0xF5F5F5 },
+        "gray-100", { bg:0xF3F4F6, fg:0x111111, border:0xE5E7EB, hotBg:0xFFFFFF, downBg:0xD1D5DB },
+        "gray-200", { bg:0xE5E7EB, fg:0x111111, border:0xD1D5DB, hotBg:0xF3F4F6, downBg:0x9CA3AF },
+        "gray-300", { bg:0xD1D5DB, fg:0x111111, border:0x9CA3AF, hotBg:0xE5E7EB, downBg:0x6B7280 },
+        "gray-400", { bg:0x9CA3AF, fg:0xFFFFFF, border:0x6B7280, hotBg:0xD1D5DB, downBg:0x4B5563 },
+        "gray-500", { bg:0x6B7280, fg:0xFFFFFF, border:0x4B5563, hotBg:0x9CA3AF, downBg:0x374151 },
+        "gray-600", { bg:0x4B5563, fg:0xFFFFFF, border:0x374151, hotBg:0x6B7280, downBg:0x1F2937 },
+        "gray-700", { bg:0x374151, fg:0xFFFFFF, border:0x1F2937, hotBg:0x4B5563, downBg:0x111827 },
+        "gray-800", { bg:0x1F2937, fg:0xFFFFFF, border:0x111827, hotBg:0x374151, downBg:0x0F172A },
+        "gray-900", { bg:0x111827, fg:0xFFFFFF, border:0x0F172A, hotBg:0x1F2937, downBg:0x000000 },
+
+        ; Escalas de rojos
+        "red-50", { bg:0xFEF2F2, fg:0x111111, border:0xFEE2E2, hotBg:0xFECACA, downBg:0xF87171 },
+        "red-100", { bg:0xFEE2E2, fg:0x111111, border:0xFCA5A5, hotBg:0xFECACA, downBg:0xF87171 },
+        "red-200", { bg:0xFCA5A5, fg:0x111111, border:0xF87171, hotBg:0xFEE2E2, downBg:0xEF4444 },
+        "red-300", { bg:0xF87171, fg:0xFFFFFF, border:0xEF4444, hotBg:0xFCA5A5, downBg:0xDC2626 },
+        "red-400", { bg:0xEF4444, fg:0xFFFFFF, border:0xDC2626, hotBg:0xF87171, downBg:0xB91C1C },
+        "red-500", { bg:0xDC2626, fg:0xFFFFFF, border:0xB91C1C, hotBg:0xEF4444, downBg:0x991B1B },
+        "red-600", { bg:0xB91C1C, fg:0xFFFFFF, border:0x991B1B, hotBg:0xDC2626, downBg:0x7F1D1D },
+        "red-700", { bg:0x991B1B, fg:0xFFFFFF, border:0x7F1D1D, hotBg:0xB91C1C, downBg:0x601212 },
+        "red-800", { bg:0x7F1D1D, fg:0xFFFFFF, border:0x601212, hotBg:0x991B1B, downBg:0x4C0D0D },
+        "red-900", { bg:0x601212, fg:0xFFFFFF, border:0x4C0D0D, hotBg:0x7F1D1D, downBg:0x3B0A0A },
+
+        ; Escalas de azules
+        "blue-50", { bg:0xEFF6FF, fg:0x111111, border:0xDBEAFE, hotBg:0xBFDBFE, downBg:0x93C5FD },
+        "blue-100", { bg:0xDBEAFE, fg:0x111111, border:0xBFDBFE, hotBg:0xE0F2FE, downBg:0x93C5FD },
+        "blue-200", { bg:0xBFDBFE, fg:0x111111, border:0x93C5FD, hotBg:0xDBEAFE, downBg:0x60A5FA },
+        "blue-300", { bg:0x93C5FD, fg:0x111111, border:0x60A5FA, hotBg:0xBFDBFE, downBg:0x3B82F6 },
+        "blue-400", { bg:0x60A5FA, fg:0xFFFFFF, border:0x3B82F6, hotBg:0x93C5FD, downBg:0x2563EB },
+        "blue-500", { bg:0x3B82F6, fg:0xFFFFFF, border:0x2563EB, hotBg:0x60A5FA, downBg:0x1D4ED8 },
+        "blue-600", { bg:0x2563EB, fg:0xFFFFFF, border:0x1D4ED8, hotBg:0x3B82F6, downBg:0x1E40AF },
+        "blue-700", { bg:0x1D4ED8, fg:0xFFFFFF, border:0x1E40AF, hotBg:0x2563EB, downBg:0x1E3A8A },
+        "blue-800", { bg:0x1E40AF, fg:0xFFFFFF, border:0x1E3A8A, hotBg:0x1D4ED8, downBg:0x1E3A8A },
+        "blue-900", { bg:0x1E3A8A, fg:0xFFFFFF, border:0x1E3A8A, hotBg:0x1E40AF, downBg:0x1E3A8A },
+
+        ; Escalas de verdes
+        "green-50", { bg:0xF0FDF4, fg:0x111111, border:0xDCFCE7, hotBg:0xBBF7D0, downBg:0x86EFAC },
+        "green-100", { bg:0xDCFCE7, fg:0x111111, border:0xBBF7D0, hotBg:0xD1FAE5, downBg:0x86EFAC },
+        "green-200", { bg:0xBBF7D0, fg:0x111111, border:0x86EFAC, hotBg:0xDCFCE7, downBg:0x4ADE80 },
+        "green-300", { bg:0x86EFAC, fg:0x111111, border:0x4ADE80, hotBg:0xBBF7D0, downBg:0x22C55E },
+        "green-400", { bg:0x4ADE80, fg:0xFFFFFF, border:0x22C55E, hotBg:0x86EFAC, downBg:0x16A34A },
+        "green-500", { bg:0x22C55E, fg:0xFFFFFF, border:0x16A34A, hotBg:0x4ADE80, downBg:0x15803D },
+        "green-600", { bg:0x16A34A, fg:0xFFFFFF, border:0x15803D, hotBg:0x22C55E, downBg:0x166534 },
+        "green-700", { bg:0x15803D, fg:0xFFFFFF, border:0x166534, hotBg:0x16A34A, downBg:0x14532D },
+        "green-800", { bg:0x166534, fg:0xFFFFFF, border:0x14532D, hotBg:0x15803D, downBg:0x134E2A },
+        "green-900", { bg:0x14532D, fg:0xFFFFFF, border:0x134E2A, hotBg:0x166534, downBg:0x123524 },
+
+        ; Escalas de púrpura
+        "purple-50", { bg:0xF5F3FF, fg:0x111111, border:0xEDE9FE, hotBg:0xDDD6FE, downBg:0xC4B5FD },
+        "purple-100", { bg:0xEDE9FE, fg:0x111111, border:0xDDD6FE, hotBg:0xC4B5FD, downBg:0xA78BFA },
+        "purple-200", { bg:0xDDD6FE, fg:0x111111, border:0xC4B5FD, hotBg:0xA78BFA, downBg:0x8B5CF6 },
+        "purple-300", { bg:0xC4B5FD, fg:0xFFFFFF, border:0xA78BFA, hotBg:0x8B5CF6, downBg:0x7C3AED },
+        "purple-400", { bg:0xA78BFA, fg:0xFFFFFF, border:0x8B5CF6, hotBg:0x7C3AED, downBg:0x6D28D9 },
+        "purple-500", { bg:0x8B5CF6, fg:0xFFFFFF, border:0x7C3AED, hotBg:0xA78BFA, downBg:0x6D28D9 },
+        "purple-600", { bg:0x7C3AED, fg:0xFFFFFF, border:0x6D28D9, hotBg:0x8B5CF6, downBg:0x5B21B6 },
+        "purple-700", { bg:0x6D28D9, fg:0xFFFFFF, border:0x5B21B6, hotBg:0x7C3AED, downBg:0x4C1D95 },
+        "purple-800", { bg:0x5B21B6, fg:0xFFFFFF, border:0x4C1D95, hotBg:0x6D28D9, downBg:0x3F0E7A },
+        "purple-900", { bg:0x4C1D95, fg:0xFFFFFF, border:0x3F0E7A, hotBg:0x5B21B6, downBg:0x2E1065 },
+
+        ; Escalas de amarillo
+        "yellow-50", { bg:0xFFFBEB, fg:0x111111, border:0xFEF3C7, hotBg:0xFDE68A, downBg:0xFCD34D },
+        "yellow-100", { bg:0xFEF3C7, fg:0x111111, border:0xFDE68A, hotBg:0xFCD34D, downBg:0xFBBF24 },
+        "yellow-200", { bg:0xFDE68A, fg:0x111111, border:0xFCD34D, hotBg:0xFBBF24, downBg:0xF59E0B },
+        "yellow-300", { bg:0xFCD34D, fg:0x111111, border:0xFBBF24, hotBg:0xF59E0B, downBg:0xD97706 },
+        "yellow-400", { bg:0xFBBF24, fg:0x111111, border:0xF59E0B, hotBg:0xD97706, downBg:0xB45309 },
+        "yellow-500", { bg:0xF59E0B, fg:0x111111, border:0xD97706, hotBg:0xFBBF24, downBg:0xB45309 },
+        "yellow-600", { bg:0xD97706, fg:0xFFFFFF, border:0xB45309, hotBg:0xF59E0B, downBg:0x92400E },
+        "yellow-700", { bg:0xB45309, fg:0xFFFFFF, border:0x92400E, hotBg:0xD97706, downBg:0x78350F },
+        "yellow-800", { bg:0x92400E, fg:0xFFFFFF, border:0x78350F, hotBg:0xB45309, downBg:0x652B0E },
+        "yellow-900", { bg:0x78350F, fg:0xFFFFFF, border:0x652B0E, hotBg:0x92400E, downBg:0x4D210C },
+
+        ; Escalas de cian
+        "cyan-50", { bg:0xECFEFF, fg:0x111111, border:0xCFFAFE, hotBg:0xA5F3FC, downBg:0x67E8F9 },
+        "cyan-100", { bg:0xCFFAFE, fg:0x111111, border:0xA5F3FC, hotBg:0x67E8F9, downBg:0x22D3EE },
+        "cyan-200", { bg:0xA5F3FC, fg:0x111111, border:0x67E8F9, hotBg:0x22D3EE, downBg:0x06B6D4 },
+        "cyan-300", { bg:0x67E8F9, fg:0x111111, border:0x22D3EE, hotBg:0x06B6D4, downBg:0x0891B2 },
+        "cyan-400", { bg:0x22D3EE, fg:0xFFFFFF, border:0x06B6D4, hotBg:0x0891B2, downBg:0x0E7490 },
+        "cyan-500", { bg:0x06B6D4, fg:0xFFFFFF, border:0x0891B2, hotBg:0x22D3EE, downBg:0x0E7490 },
+        "cyan-600", { bg:0x0891B2, fg:0xFFFFFF, border:0x0E7490, hotBg:0x06B6D4, downBg:0x155E75 },
+        "cyan-700", { bg:0x0E7490, fg:0xFFFFFF, border:0x155E75, hotBg:0x0891B2, downBg:0x164E63 },
+        "cyan-800", { bg:0x155E75, fg:0xFFFFFF, border:0x164E63, hotBg:0x0E7490, downBg:0x083344 },
+        "cyan-900", { bg:0x164E63, fg:0xFFFFFF, border:0x083344, hotBg:0x155E75, downBg:0x062C3A },
+
+        ; Escalas de rosa
+        "pink-50", { bg:0xFDF2F8, fg:0x111111, border:0xFCE7F3, hotBg:0xFBCFE8, downBg:0xF9A8D4 },
+        "pink-100", { bg:0xFCE7F3, fg:0x111111, border:0xFBCFE8, hotBg:0xF9A8D4, downBg:0xF472B6 },
+        "pink-200", { bg:0xFBCFE8, fg:0x111111, border:0xF9A8D4, hotBg:0xF472B6, downBg:0xEC4899 },
+        "pink-300", { bg:0xF9A8D4, fg:0xFFFFFF, border:0xF472B6, hotBg:0xEC4899, downBg:0xDB2777 },
+        "pink-400", { bg:0xF472B6, fg:0xFFFFFF, border:0xEC4899, hotBg:0xDB2777, downBg:0xBE185D },
+        "pink-500", { bg:0xEC4899, fg:0xFFFFFF, border:0xDB2777, hotBg:0xF472B6, downBg:0xBE185D },
+        "pink-600", { bg:0xDB2777, fg:0xFFFFFF, border:0xBE185D, hotBg:0xEC4899, downBg:0x9D174D },
+        "pink-700", { bg:0xBE185D, fg:0xFFFFFF, border:0x9D174D, hotBg:0xDB2777, downBg:0x831843 },
+        "pink-800", { bg:0x9D174D, fg:0xFFFFFF, border:0x831843, hotBg:0xBE185D, downBg:0x701A3E },
+        "pink-900", { bg:0x831843, fg:0xFFFFFF, border:0x701A3E, hotBg:0x9D174D, downBg:0x5F1239 }
     )
 }
 

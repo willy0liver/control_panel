@@ -38,7 +38,7 @@ global gBuilt := false
 ;----------------------
 ; Hotkey: Alt + P
 ;----------------------
-!p:: {
+!z:: {
     global gGui, gBuilt
     if !gBuilt {
         gGui := Gui("+AlwaysOnTop", "Panel dinámico")

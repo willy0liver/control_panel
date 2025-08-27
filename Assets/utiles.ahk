@@ -92,6 +92,14 @@ GetKey(obj, key, alias := "") {
     return ""
 }
 
+GetJsonColorOrFile(data, filePath) {
+    color := SafeTrim(GetKey(data, "color"))
+    if (color != "")
+        return color
+    SplitPath(filePath, &fn)
+    return RegExReplace(fn, "\.json$", "")
+}
+
 GetJsonNameOrFile(data, filePath) {
     name := SafeTrim(GetKey(data, "name"))
     if (name != "")
