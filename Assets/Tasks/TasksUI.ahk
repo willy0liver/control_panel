@@ -142,8 +142,16 @@ _NewTaskDialog(editId := "") {
     ; ---- Trigger --------------------------------------------------------
     dlg.Add("GroupBox", "xm w360 h95", "Trigger")
     ddTrig := dlg.Add("DropDownList", "xp+10 yp+20 w120", ["off","at","interval"])
-    edTime := dlg.Add("Edit", "x+10 w90",  (t.trigger.type="at") ? (t.trigger.Has("time")    ? t.trigger.time    : "") : "")
-    edMins := dlg.Add("Edit", "x+10 w70 Number", (t.trigger.type="interval") ? (t.trigger.Has("minutes") ? t.trigger.minutes : "") : "")
+    edTime := dlg.Add("Edit", "x+10 w90"
+    , (t.trigger.type = "at")
+        ? (ObjHasOwnProp(t.trigger, "time") ? t.trigger.time : "")
+        : ""
+    )
+    edMins := dlg.Add("Edit", "x+10 w70 Number"
+    , (t.trigger.type = "interval")
+        ? (ObjHasOwnProp(t.trigger, "minutes") ? t.trigger.minutes : "")
+        : ""
+    )
 
     ; elegir trigger inicial
     ddTrig.Choose( (t.trigger.type="interval") ? 3 : (t.trigger.type="at") ? 2 : 1 )
@@ -166,9 +174,11 @@ _NewTaskDialog(editId := "") {
     ; ---- Acción ---------------------------------------------------------
     dlg.Add("GroupBox", "xm w360 h95", "Acción")
     ddAct := dlg.Add("DropDownList", "xp+10 yp+20 w120", ["openUrl","run","sendText","ahk"])
-    edVal := dlg.Add("Edit", "x+10 w220", t.action.Has("value") ? t.action.value : "")
+    edVal := dlg.Add("Edit", "x+10 w220", ObjHasOwnProp(t.action, "value") ? t.action.value : "")
 
-    actIdx := 1, aType := t.action.type
+    
+    actIdx := 1
+    aType := ObjHasOwnProp(t.action, "type") ? t.action.type : "openUrl"
     if (aType="run")
         actIdx := 2
     else
