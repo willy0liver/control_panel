@@ -411,7 +411,7 @@ _IsTopMost(hwnd) {
     return (ex & WS_EX_TOPMOST) != 0
 }
 
-; --- Error dialog watcher ---
+; --- Error dialog watcher (reemplazo) --------------------
 global _ErrWatchOn := false
 
 _ErrWatch_Start() {
@@ -429,19 +429,27 @@ _ErrWatch_Stop(*) {
 }
 
 _ErrWatch_Tick() {
-    ; Los errores de AHK son diálogos (#32770) cuyo texto contiene "Error:"
+    static curr := 0  ; HWND del último diálogo de error manejado
+
+    ; Si ya estamos gestionando uno y sigue abierto, no hagas nada.
+    if (curr && WinExist("ahk_id " curr))
+        return
+    ; Si ya no existe, limpiamos y seguimos buscando.
+    curr := 0
+
+    ; Busca cualquier diálogo de error del intérprete AHK (#32770 + texto "Error:")
     for hwnd in WinGetList("ahk_class #32770") {
         text := ""
         try text := WinGetText("ahk_id " hwnd)
-        if InStr(text, "Error:") {
-            ; Sube el diálogo y garantiza visibilidad
+        if !InStr(text, "Error:")
+            continue
+
+        ; Traerlo al frente UNA sola vez y dejarlo AlwaysOnTop mientras exista.
+        curr := hwnd
+        try {
             WinActivate "ahk_id " hwnd
-            try {
-                WinSetAlwaysOnTop true,  "ahk_id " hwnd
-                Sleep 30
-                WinSetAlwaysOnTop false, "ahk_id " hwnd
-            }
-            return
+            WinSetAlwaysOnTop true, "ahk_id " hwnd   ; no lo “despulsemos” en bucle
         }
+        return
     }
 }
