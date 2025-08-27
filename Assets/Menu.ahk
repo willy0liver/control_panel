@@ -6,8 +6,6 @@
 fn_get_menu_0(){
     ; 🔸 Opciones de Menu
     OptionsMenu := Menu()
-    OptionsMenu.Add("Reload", (*) => Reload())
-    OptionsMenu.SetIcon("Reload", "C:\Windows\System32\shell32.dll", 239) 
     
     MyMenuBar := MenuBar()
     MyMenuBar.Add("&Options", OptionsMenu)
@@ -83,6 +81,17 @@ fn_get_menu(){
     
     ; Agregar el menú dinámico al MenuBar
     MyMenuBar.Add("&" nombreMenu, Menus[nombreMenu])
+    
+    nombreMenu := "Utils"
+    Menus[nombreMenu] := Menu()  ; Crear un nuevo menú y almacenarlo en el objeto `Menus`
+
+    Menus[nombreMenu].Add("Tareas", (*) => Tasks_Show())
+    Menus[nombreMenu].SetIcon("Tareas", "C:\Windows\System32\shell32.dll", 166) 
+            
+    ; Agregar el menú dinámico al MenuBar
+    MyMenuBar.Add("&" nombreMenu, Menus[nombreMenu])
+
+    
 
     ; 🔸 Ruta del directorio donde están los JSON
     directorio := A_ScriptDir "\menu"

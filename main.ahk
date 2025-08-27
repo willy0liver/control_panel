@@ -6,6 +6,11 @@
 #Include Assets\ButtonsUI.ahk 
 #Include Assets\ButtonColors.ahk   ; <<< NUEVO
 #Include Assets\Theme.ahk          ; <<< Opcional (si lo usas)
+;; Tareas
+#Include Assets\Tasks\TasksStore.ahk
+#Include Assets\Tasks\TasksScheduler.ahk
+#Include Assets\Tasks\TasksUI.ahk
+
 
 CoordMode("Menu", "Screen")
 ;===========================================================
@@ -72,4 +77,6 @@ BuildMenuBar() {
     global gGui
     mb := fn_get_menu()
     gGui.MenuBar := mb
+    Tasks_Init()  ; opcional si quieres que el scheduler inicie siempre
+
 }
