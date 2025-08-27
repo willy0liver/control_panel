@@ -1,8 +1,0 @@
-{
-    "name": "Mi boton 1 xD",
-    "opciones": [
-        { "opcion": "F1_B1_op1", "valor": "http://f1_b1_opcion1.com", "isPage": "S", "atajo": "pag01" },
-        { "opcion": "F1_B1_op2", "valor": "http://f1_b1_opcion2.com", "isPage": "S", "atajo": "pag02" },
-        { "opcion": "F1_B1_op3", "valor": "http://f1_b1_opcion3.com", "isPage": "N", "atajo": "pag03" }
-    ]
-}

@@ -1,8 +1,0 @@
-{
-    "name": "Mi boton 3",
-    "opciones": [
-        { "opcion": "F1_B3_op1", "url": "http://f1_b3_opcion1.com" },
-        { "opcion": "F1_B3_op2 ", "url": "http://f1_b3_opcion2.com" },
-        { "opcion": "F1_B3_op3 ", "url": "http://f1_b3_opcion3.com" }
-    ]
-}

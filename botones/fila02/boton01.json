@@ -1,8 +1,0 @@
-{
-    "name": "Mi boton 1 xD",
-    "opciones": [
-        { "opcion": "F1_B1_op1", "url": "http://f1_b1_opcion1.com" },
-        { "opcion": "F1_B1_op2", "url": "http://f1_b1_opcion2.com" },
-        { "opcion": "F1_B1_op3", "url": "http://f1_b1_opcion3.com" }
-    ]
-}
