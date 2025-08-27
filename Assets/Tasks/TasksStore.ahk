@@ -18,12 +18,21 @@
 global gTasksData := { tasks: [] }
 global gTasksLoaded := false
 
+; === Config y estado =====================================================
+TasksStore_Dir() {
+    static dir := A_ScriptDir "\tareas"   ; cambia si prefieres otra carpeta
+    return dir
+}
+
+; Llama una sola vez al iniciar Tareas_Show()
 TasksStore_Init() {
-    global gTasksLoaded
-    if gTasksLoaded
-        return
-    _LoadFromDisk()
-    gTasksLoaded := true
+    dir := TasksStore_Dir()
+    if !DirExist(dir) {
+        try DirCreate(dir)
+        catch as e
+            MsgBox("No se pudo crear la carpeta de tareas:`n" dir "`n`n" e.Message, "Error", "Iconx")
+    }
+    ; Si cargas tareas desde disco, déjalo como lo tenías aquí.
 }
 
 TasksStore_Path() {
@@ -38,14 +47,35 @@ TasksStore_All() {
     return gTasksData.tasks
 }
 
+; === API principal =======================================================
+
 TasksStore_Add(task) {
-    _EnsureTaskDefaults(task)
-    task.id := _NewId()
-    task.createdAt := _NowString()
-    task.updatedAt := task.createdAt
-    TasksStore_All().Push(task)
-    TasksStore_SaveNow()
-    return task.id
+    if (!ObjHasOwnProp(task, "id") || task.id = "" )
+        task.id := _TasksStore_NewId()          ; asigna id a nuevas
+    _TasksStore_Persist(task)                   ; <-- escribe a disco SIEMPRE
+    _TasksStore_AddToMemory(task)               ; <-- como lo hacías (array/map en memoria)
+}
+
+TasksStore_Update(id, task) {
+    task.id := id
+    _TasksStore_Persist(task)                   ; <-- sobrescribe archivo
+    _TasksStore_UpdateInMemory(id, task)        ; <-- como lo hacías
+}
+
+_TasksStore_UpdateInMemory(id, task) {
+    arr := TasksStore_All()
+    for i, t in arr {
+        if t.id = id {
+            arr[i] := task
+            return true
+        }
+    }
+    return false
+}
+
+_TasksStore_AddToMemory(task) {
+    global gTasksData
+    gTasksData.tasks.Push(task)
 }
 
 TasksStore_UpdateById(id, patch) {
@@ -120,6 +150,34 @@ _Tasks_SortDatesDesc(arr) {
 
 
 ; ---------- Internos ----------
+
+; === Utilidades internas =================================================
+
+_TasksStore_NewId() {
+    ; timestamp + tickcount para que sea único y ordenable
+    ts := FormatTime("yyyyMMddHHmmss")
+    return ts "_" A_TickCount
+}
+
+_TasksStore_Persist(task) {
+    dir := TasksStore_Dir()
+    if !DirExist(dir)
+        DirCreate(dir)
+
+    path := dir "\" task.id ".json"
+
+    ; Usa tu JSON lib (ajusta el nombre si difiere)
+    json := Jxon_Dump(task)  ; si tu lib se llama distinto, ponlo aquí
+
+    f := FileOpen(path, "w", "UTF-8")
+    try {
+        f.Write(json)
+        f.Close()
+    } catch as e {
+        try f.Close()
+        MsgBox("No se pudo guardar la tarea:`n" path "`n`n" e.Message, "Error", "Iconx")
+    }
+}
 
 _LoadFromDisk() {
     global gTasksData

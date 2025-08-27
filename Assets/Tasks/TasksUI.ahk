@@ -25,16 +25,15 @@ global _Tasks_WasTopMost := false
 !t::Tasks_Show()
 
 Tasks_Show() {
-    global gTasksGui, gGui
-    _Tasks_TopMostOff()   ; baja temporalmente el Panel
-
-    if !IsSet(gTasksGui) || !gTasksGui {
-        _BuildGui()
-        try gTasksGui.Opt("+Owner" gGui.Hwnd)
-        gTasksGui.OnEvent("Close",  (*) => (_Tasks_TopMostRestore(), _ErrWatch_Stop()))
-        gTasksGui.OnEvent("Escape", (*) => (_Tasks_TopMostRestore(), _ErrWatch_Stop()))
+    ;global gTasksGui, gGui
+    _Tasks_TopMostOff()   ; baja temporalmente el Panel    
+    static inited := false
+    if !inited {
+        TasksStore_Init()
+        inited := true
     }
-
+    _BuildGui()
+    _RefreshAll()
     _ErrWatch_Start()     ; <<< vigila errores mientras Tareas esté abierta
     gTasksGui.Show()
 }
@@ -150,8 +149,8 @@ _NewTaskDialog(editId := "") {
     ; ...
 
     ; Botones
-    btnOk := dlg.Add("Button", "x+m w90", "Guardar")
-    btnOk.OnEvent("Click", SaveAndClose)
+    btnSave := dlg.Add("Button", "w90", "Guardar")
+    btnSave.OnEvent("Click", SaveAndClose)
 
     btnCancel := dlg.Add("Button", "x+m w90", "Cancelar")
     btnCancel.OnEvent("Click", (*) => dlg.Destroy())
@@ -159,13 +158,33 @@ _NewTaskDialog(editId := "") {
     dlg.Show()
 
     SaveAndClose(*) {
-        ; Lee valores de controles y guarda la tarea
-        ; ...
-        dlg.Destroy()
-        _RefreshAll()
+        ; 1) Armar objeto tarea desde controles
+        t := {
+            id: (isEdit ? editId : ""),               ; si es nueva, el Store le pondrá id
+            title: Trim(edTitle.Value),
+            trigger: _UiReadTrigger(),                ; tu helper que lee tipo/valor del trigger
+            action:  _UiReadAction(),                 ; idem para acción
+            inProgress: chkInProgress.Value = 1,
+            completed: false,
+            completedAt: ""
+        }
+
+        ; 2) Validación mínima
+        if (t.title = "") {
+            MsgBox("El título no puede estar vacío.", "Validación", "Icon!")
+            return
+        }
+
+        ; 3) Persistir (add/update) y refrescar UI
+        if (isEdit)
+            TasksStore_Update(editId, t)
+        else
+            TasksStore_Add(t)
+
+        _RefreshAll()           ; vuelve a pintar Pendientes / Completadas
+        dlg.Destroy()           ; 4) recién ahora cerramos el diálogo
     }
 }
-
 
 _SaveTaskDialog(gui, edTitle, ddTrig, edT, ddAct, edVal, cbInProg, isEdit, editId) {
     title := Trim(edTitle.Text)
