@@ -123,40 +123,49 @@ _GetSelectedId() {
 }
 
 _NewTaskDialog(editId := "") {
+    global gTasksGui   ; para poner la ventana de Tareas como dueña del diálogo
+
     isEdit := (editId != "")
-    t := isEdit ? _CloneTask(_Find(editId)) : { title:"", trigger:{type:"off"}, action:{type:"openUrl",value:""}, inProgress:false, completed:false, completedAt:"" }
+    t := isEdit
+        ? _CloneTask(_Find(editId))
+        : { title:"", trigger:{type:"off"}, action:{type:"openUrl",value:""}, inProgress:false, completed:false, completedAt:"" }
 
-    gui := Gui("+Owner", isEdit ? "Editar Tarea" : "Nueva Tarea")
-    gui.Add("Text",, "Título:")
-    edTitle := gui.Add("Edit", "w320", t.title)
+    ; ⬇️ RENOMBRAR 'gui' -> 'dlg' y fijar el Owner explícito
+    title := isEdit ? "Editar Tarea" : "Nueva Tarea"
+    dlg := Gui("+Owner" gTasksGui.Hwnd, title)
 
-    gui.Add("Text",, "Trigger:")
-    ddTrig := gui.Add("DropDownList", "w180", ["off","at","interval"])
-    ddTrig.Choose( (t.trigger.type="at")?2 : (t.trigger.type="interval")?3 : 1 )
+    dlg.OnEvent("Close", (*)  => dlg.Destroy())
+    dlg.OnEvent("Escape", (*) => dlg.Destroy())
 
-    txA := gui.Add("Text", "xm", "Hora (hh:mm am/pm) para 'at'  |  Minutos para 'interval':")
-    edT := gui.Add("Edit", "w180", (t.trigger.type="at")? (ObjHasOwnProp(t.trigger,"time")?t.trigger.time:"") : (ObjHasOwnProp(t.trigger,"minutes")?t.trigger.minutes:""))
+    ; --- Controles (mantén tu layout actual, solo cambia 'gui.' por 'dlg.') ---
+    dlg.Add("Text",, "Título:")
+    edTitle := dlg.Add("Edit", "w320", t.title)
 
-    gui.Add("Text", "xm", "Acción:")
-    ddAct := gui.Add("DropDownList", "w180", ["openUrl","run","sendText","ahk"])
-    ddAct.Choose( (t.action.type="run")?2 : (t.action.type="sendText")?3 : (t.action.type="ahk")?4 : 1 )
+    ; ... (todo lo que tenías: radios/edits del trigger, acción, etc.)
+    ; ejemplo:
+    ; grpTrig := dlg.Add("GroupBox", "x+20 w320 h120", "Trigger")
+    ; rOff   := dlg.Add("Radio", "xp+10 yp+20", "Off")
+    ; rTime  := dlg.Add("Radio", "x+10 yp", "Hora")
+    ; rEvery := dlg.Add("Radio", "x+10 yp", "Intervalo")
+    ; ...
 
-    gui.Add("Text", "xm", "Valor de acción (URL, ruta, texto o nombre de función):")
-    edVal := gui.Add("Edit", "w380", t.action.value)
+    ; Botones
+    btnOk := dlg.Add("Button", "x+m w90", "Guardar")
+    btnOk.OnEvent("Click", SaveAndClose)
 
-    cbInProg := gui.Add("CheckBox", "xm", "En Proceso")
-    cbInProg.Value := t.inProgress
+    btnCancel := dlg.Add("Button", "x+m w90", "Cancelar")
+    btnCancel.OnEvent("Click", (*) => dlg.Destroy())
 
-    btnOK := gui.Add("Button", "xm w120", "Guardar")
-    btnCancel := gui.Add("Button", "x+m w120", "Cancelar")
+    dlg.Show()
 
-    btnOK.OnEvent("Click", (*) => (
-        _SaveTaskDialog(gui, edTitle, ddTrig, edT, ddAct, edVal, cbInProg, isEdit, editId)
-    ))
-    btnCancel.OnEvent("Click", (*) => gui.Destroy())
-
-    gui.Show()
+    SaveAndClose(*) {
+        ; Lee valores de controles y guarda la tarea
+        ; ...
+        dlg.Destroy()
+        _RefreshAll()
+    }
 }
+
 
 _SaveTaskDialog(gui, edTitle, ddTrig, edT, ddAct, edVal, cbInProg, isEdit, editId) {
     title := Trim(edTitle.Text)
