@@ -15,6 +15,7 @@
 
 global gTasksGui := 0
 global gLV_Pend := 0
+global gLV_Done := 0
 global gPanelComp := 0
 global gHistGui := 0
 
@@ -38,12 +39,18 @@ _BuildGui() {
 
     ; -------- Pestaña: Pendientes --------
     tabs.UseTab("Pendientes")
-    gLV_Pend := gTasksGui.Add("ListView", "x20 y50 w750 h370 Grid", "Título|Trigger|Acción|Proc.|Creada")
+    ;gLV_Pend := gTasksGui.Add("ListView", "x20 y50 w750 h370 Grid", "Título|Trigger|Acción|Proc.|Creada")
+    gLV_Pend := gTasksGui.Add(
+        "ListView"
+    , "x20 y50 w750 h370 Grid"
+    , ["Título","Trigger","Acción","Proc.","Creada"]
+    )
+    ; (opcional) ajustar anchos
     gLV_Pend.ModifyCol(1, 250)
     gLV_Pend.ModifyCol(2, 140)
-    gLV_Pend.ModifyCol(3, 120)
-    gLV_Pend.ModifyCol(4, 60)
-    gLV_Pend.ModifyCol(5, 130)
+    gLV_Pend.ModifyCol(3, 140)
+    gLV_Pend.ModifyCol(4, 60)     ; Proc.
+    gLV_Pend.ModifyCol(5, 160)    ; Creada
 
     btnAdd   := gTasksGui.Add("Button", "x20  y430 w100", "Nueva")
     btnEdit  := gTasksGui.Add("Button", "x130 y430 w100", "Editar")
@@ -61,6 +68,15 @@ _BuildGui() {
 
     ; -------- Pestaña: Completadas --------
     tabs.UseTab("Completadas")
+    gLV_Done := gTasksGui.Add(
+        "ListView"
+    , "x20 y50 w750 h370 Grid"
+    , ["Fecha","Hora","Título"]
+    )
+    ; (opcional) ajustar anchos
+    gLV_Done.ModifyCol(1, 120)   ; Fecha
+    gLV_Done.ModifyCol(2, 80)    ; Hora
+    gLV_Done.ModifyCol(3, 520)   ; Título (ajusta a tu gusto)
     gPanelComp := gTasksGui.Add("Text", "x20 y50 w750 h360", "")  ; contenedor “dummy”; reconstruiremos bloques encima
     btnHist := gTasksGui.Add("Button", "x20 y430 w160", "Historial de Tareas")
     btnHist.OnEvent("Click", (*) => _ShowHistory())
