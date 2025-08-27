@@ -18,19 +18,27 @@ global gLV_Pend := 0
 global gLV_Done := 0
 global gPanelComp := 0
 global gHistGui := 0
+; --- Guard para controlar AlwaysOnTop mientras Tareas está abierta ---
+global _Tasks_WasTopMost := false
 
 ; -------- Hotkey ----------
 !t::Tasks_Show()
 
 Tasks_Show() {
-    TasksStore_Init()
-    if !gTasksGui {
+    global gTasksGui, gGui
+    _Tasks_TopMostOff()   ; baja temporalmente el Panel
+
+    if !IsSet(gTasksGui) || !gTasksGui {
         _BuildGui()
-        TasksScheduler_Start()  ; opcional: arrancar scheduler si aún no
+        try gTasksGui.Opt("+Owner" gGui.Hwnd)
+        gTasksGui.OnEvent("Close",  (*) => (_Tasks_TopMostRestore(), _ErrWatch_Stop()))
+        gTasksGui.OnEvent("Escape", (*) => (_Tasks_TopMostRestore(), _ErrWatch_Stop()))
     }
-    _RefreshAll()
+
+    _ErrWatch_Start()     ; <<< vigila errores mientras Tareas esté abierta
     gTasksGui.Show()
 }
+
 
 _BuildGui() {
     global gTasksGui, gLV_Pend, gPanelComp
@@ -372,4 +380,68 @@ _ShowHistory() {
     btnClose.OnEvent("Click", (*) => gHistGui.Hide())
 
     gHistGui.Show()
+}
+
+; Mostrar / ocultar AlwaysOnTop mientras Tareas está abierta
+_Tasks_TopMostOff() {
+    global gGui, gTasksGui, _Tasks_WasTopMost
+    if IsSet(gGui) && gGui {
+        if _IsTopMost(gGui.Hwnd) {
+            _Tasks_WasTopMost := true
+            gGui.Opt("-AlwaysOnTop")
+        } else {
+            _Tasks_WasTopMost := false
+        }
+    }
+    ; por si en algún momento marcas Tareas como topmost, también lo bajamos
+    if IsSet(gTasksGui) && gTasksGui && _IsTopMost(gTasksGui.Hwnd)
+        gTasksGui.Opt("-AlwaysOnTop")
+}
+
+_Tasks_TopMostRestore(*) {
+    global gGui, _Tasks_WasTopMost
+    if _Tasks_WasTopMost && IsSet(gGui) && gGui
+        gGui.Opt("+AlwaysOnTop")
+    _Tasks_WasTopMost := false
+}
+
+_IsTopMost(hwnd) {
+    ex := DllCall("user32\GetWindowLongPtr", "ptr", hwnd, "int", -20, "ptr")
+    WS_EX_TOPMOST := 0x00000008
+    return (ex & WS_EX_TOPMOST) != 0
+}
+
+; --- Error dialog watcher ---
+global _ErrWatchOn := false
+
+_ErrWatch_Start() {
+    global _ErrWatchOn
+    if _ErrWatchOn
+        return
+    _ErrWatchOn := true
+    SetTimer _ErrWatch_Tick, 250
+}
+
+_ErrWatch_Stop(*) {
+    global _ErrWatchOn
+    _ErrWatchOn := false
+    SetTimer _ErrWatch_Tick, 0
+}
+
+_ErrWatch_Tick() {
+    ; Los errores de AHK son diálogos (#32770) cuyo texto contiene "Error:"
+    for hwnd in WinGetList("ahk_class #32770") {
+        text := ""
+        try text := WinGetText("ahk_id " hwnd)
+        if InStr(text, "Error:") {
+            ; Sube el diálogo y garantiza visibilidad
+            WinActivate "ahk_id " hwnd
+            try {
+                WinSetAlwaysOnTop true,  "ahk_id " hwnd
+                Sleep 30
+                WinSetAlwaysOnTop false, "ahk_id " hwnd
+            }
+            return
+        }
+    }
 }

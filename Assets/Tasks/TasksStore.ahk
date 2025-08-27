@@ -99,11 +99,25 @@ TasksStore_Last3CompletedDates() {
         }
     }
     ; ordenar desc
-    dates.Sort((a,b) => (a<b) ? 1 : (a>b) ? -1 : 0)
-    while dates.Length > 3
-        dates.Pop()
+    ; NEW (compatible y simple)
+    dates := _Tasks_SortDatesDesc(dates)
+    if (dates.Length > 3)
+        dates.Length := 3
     return dates
 }
+
+; Ordena un array de fechas YYYY-MM-DD en orden descendente (compat v2 sin Array.Sort)
+_Tasks_SortDatesDesc(arr) {
+    if !(arr is Array) || arr.Length <= 1
+        return arr
+    s := ""
+    for d in arr
+        s .= d "`n"
+    s := RTrim(s, "`n")
+    s := Sort(s, "R")                 ; "R" = reverse (desc); lexicográfico sirve para YYYY-MM-DD
+    return StrSplit(s, "`n")
+}
+
 
 ; ---------- Internos ----------
 
@@ -252,3 +266,4 @@ StrJoin(arr, sep:=",") {
         out .= (i>1 ? sep : "") v
     return out
 }
+
