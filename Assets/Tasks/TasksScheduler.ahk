@@ -40,37 +40,38 @@ TasksScheduler_Tick(*) {
     nowTime := FormatTime(, "HHmm")   ; 24h para comparar "at"
 
     for t in TasksStore_All() {
-        if t.completed
+        ; Accesos seguros (soporta Map() y Object {})
+        trig := _KV(t, "trigger", Map())
+        typ  := _KV(trig, "type", "off")
+
+        if _KV(t, "completed", false)
             continue
-        if t.trigger.type = "off"
+        if (typ = "off")
             continue
 
-        if t.trigger.type = "at" {
-            ; t.trigger.time = "HH:mm" (12h/24h — lo normalizaremos a 24h HHmm)
-            trg := _NormalizeTimeToHHmm(t.trigger.time)
+        if (typ = "at") {
+            trg := _NormalizeTimeToHHmm(_KV(trig, "time", ""))
             if (trg = "")
                 continue
-            ; correr una vez por día a esa hora si no corrió hoy
-            if (t.lastDateRun != today && nowTime >= trg) {
+            if (_KV(t,"lastDateRun","") != today && nowTime >= trg) {
                 _RunTaskAction(t)
-                t.lastDateRun := today
-                t.updatedAt := _NowString()
+                t["lastDateRun"] := today
+                t["updatedAt"]   := _NowString()
                 TasksStore_SaveNow()
             }
-        } else if t.trigger.type = "interval" {
-            ; t.trigger.minutes (>=1)
-            mins := (ObjHasOwnProp(t.trigger, "minutes")) ? t.trigger.minutes : 0
+        } else if (typ = "interval") {
+            mins := Integer(_KV(trig, "minutes", 0))
             if (mins < 1)
                 continue
-            if (t.nextRunAt = "") {
-                ; programar primera corrida "ahora + mins"
-                t.nextRunAt := _AddMinutes(_NowString(), mins)
-                t.updatedAt := _NowString()
+            nextRun := _KV(t, "nextRunAt", "")
+            if (nextRun = "") {
+                t["nextRunAt"] := _AddMinutes(_NowString(), mins)
+                t["updatedAt"] := _NowString()
                 TasksStore_SaveNow()
-            } else if (_NowGE(t.nextRunAt, now)) {
+            } else if (_NowGE(nextRun, now)) {
                 _RunTaskAction(t)
-                t.nextRunAt := _AddMinutes(_NowString(), mins)
-                t.updatedAt := _NowString()
+                t["nextRunAt"] := _AddMinutes(_NowString(), mins)
+                t["updatedAt"] := _NowString()
                 TasksStore_SaveNow()
             }
         }
@@ -78,9 +79,9 @@ TasksScheduler_Tick(*) {
 }
 
 _RunTaskAction(t) {
-    act := t.action
-    typ := act.type
-    val := act.value
+    act := _KV(t, "action", Map())
+    typ := _KV(act, "type", "")
+    val := _KV(act, "value", "")
     try {
         if (typ = "openUrl") {
             if (val != "")
@@ -98,8 +99,12 @@ _RunTaskAction(t) {
             }
         } else if (typ = "ahk") {
             ; ejecutar función por nombre si existe
-            if (IsSet(%val%))
-                %val%()
+            if (val != "") {
+                fn := ""
+                try fn := Func()
+                if IsObject(fn)
+                    fn.Call()
+            }
         }
     } catch as e {
         ; puedes registrar logs si quieres

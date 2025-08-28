@@ -24,6 +24,19 @@ global _Tasks_WasTopMost := false
 ; -------- Hotkey ----------
 !t::Tasks_Show()
 
+; Lector seguro para Map() y Object {}
+_KV(obj, key, def:="") {
+    if !IsObject(obj)
+        return def
+    if (obj is Map)
+        return obj.Has(key) ? obj[key] : def
+    try {
+        if ObjHasOwnProp(obj, key)
+            return obj.%key%
+    }
+    return def
+}
+
 Tasks_Show() {
     ;global gTasksGui, gGui
     _Tasks_TopMostOff()   ; baja temporalmente el Panel    
@@ -102,16 +115,16 @@ _RefreshPending() {
     gLV_Pend.Delete()  ; limpiar filas
 
     for t in TasksStore_All() {
-        if t.completed
+        if _KV(t, "completed", false)
             continue
         gLV_Pend.Add(
             ""
-        , t.title
+        , _KV(t, "title", "")
         , _TriggerText(t)
         , _ActionText(t)
-        , (t.inProgress ? "Sí" : "No")
-        , t.createdAt
-        , t.id                 ; <-- columna 6 (oculta)
+        , (_KV(t, "inProgress", false) ? "Sí" : "No")
+        , _KV(t, "createdAt", "")
+        , _KV(t, "id", "")      ; <-- columna 6 (oculta)
         )
     }
 }
@@ -128,7 +141,14 @@ _NewTaskDialog(editId := "") {
     isEdit := (editId != "")
     t := isEdit
         ? _CloneTask(_Find(editId))
-        : { title:"", trigger:{type:"off"}, action:{type:"openUrl",value:""}, inProgress:false, completed:false, completedAt:"" }
+        : Map(
+            "title", "",
+            "trigger", Map("type", "off"),
+            "action",  Map("type", "openUrl", "value", ""),
+            "inProgress", false,
+            "completed",  false,
+            "completedAt", ""
+        )
 
     title := isEdit ? "Editar Tarea" : "Nueva Tarea"
     dlg := Gui("+Owner" gTasksGui.Hwnd, title)
@@ -137,24 +157,20 @@ _NewTaskDialog(editId := "") {
 
     ; ---- Título ---------------------------------------------------------
     dlg.Add("Text",, "Título:")
-    edTitle := dlg.Add("Edit", "w360", t.title)
+    edTitle := dlg.Add("Edit", "w360", _KV(t, "title", ""))
 
-    ; ---- Trigger --------------------------------------------------------
+    ; ---- Trigger (valores iniciales seguros) ----
+    trig      := _KV(t, "trigger", Map())
+    tTrigType := _KV(trig, "type", "off")
+    tAtTime   := _KV(trig, "time", "")
+    tMins     := _KV(trig, "minutes", "")
+
     dlg.Add("GroupBox", "xm w360 h95", "Trigger")
     ddTrig := dlg.Add("DropDownList", "xp+10 yp+20 w120", ["off","at","interval"])
-    edTime := dlg.Add("Edit", "x+10 w90"
-    , (t.trigger.type = "at")
-        ? (ObjHasOwnProp(t.trigger, "time") ? t.trigger.time : "")
-        : ""
-    )
-    edMins := dlg.Add("Edit", "x+10 w70 Number"
-    , (t.trigger.type = "interval")
-        ? (ObjHasOwnProp(t.trigger, "minutes") ? t.trigger.minutes : "")
-        : ""
-    )
-
-    ; elegir trigger inicial
-    ddTrig.Choose( (t.trigger.type="interval") ? 3 : (t.trigger.type="at") ? 2 : 1 )
+    edTime := dlg.Add("Edit", "x+10 w90",  (tTrigType="at") ? tAtTime : "")
+    edMins := dlg.Add("Edit", "x+10 w70 Number", (tTrigType="interval") ? tMins : "")
+    ddTrig.Choose( (tTrigType="interval") ? 3 : (tTrigType="at") ? 2 : 1 )
+    
 
     ToggleTrigFields(*) {
         if (ddTrig.Text = "at") {
@@ -171,27 +187,20 @@ _NewTaskDialog(editId := "") {
     ddTrig.OnEvent("Change", ToggleTrigFields)
     ToggleTrigFields()
 
-    ; ---- Acción ---------------------------------------------------------
+    ; ---- Acción (valores iniciales seguros) ----
     dlg.Add("GroupBox", "xm w360 h95", "Acción")
     ddAct := dlg.Add("DropDownList", "xp+10 yp+20 w120", ["openUrl","run","sendText","ahk"])
-    edVal := dlg.Add("Edit", "x+10 w220", ObjHasOwnProp(t.action, "value") ? t.action.value : "")
 
-    
-    actIdx := 1
-    aType := ObjHasOwnProp(t.action, "type") ? t.action.type : "openUrl"
-    if (aType="run")
-        actIdx := 2
-    else
-        if (aType="sendText")
-            actIdx := 3
-        else
-            if (aType="ahk")
-                actIdx := 4
-    ddAct.Choose(actIdx)
+    act   := _KV(t, "action", Map())
+    aType := _KV(act, "type",  "openUrl")
+    aVal  := _KV(act, "value", "")
+
+    edVal := dlg.Add("Edit", "x+10 w220", aVal)
+    ddAct.Choose( (aType="run") ? 2 : (aType="sendText") ? 3 : (aType="ahk") ? 4 : 1 )
 
     ; ---- Estado ---------------------------------------------------------
     chkInProgress := dlg.Add("CheckBox", "xm w200", "En proceso")
-    chkInProgress.Value := t.inProgress ? 1 : 0
+    chkInProgress.Value := _KV(t, "inProgress", false) ? 1 : 0
 
     ; ---- Botones --------------------------------------------------------
     btnSave := dlg.Add("Button", "xm w100", "Guardar")
@@ -205,32 +214,33 @@ _NewTaskDialog(editId := "") {
     _UiReadTrigger() {
         typ := ddTrig.Text
         if (typ = "off")
-            return { type:"off" }
+            return Map("type", "off")
         if (typ = "at")
-            return { type:"at", time: Trim(edTime.Value) }
-        ; interval
-        mins := Integer(Trim(edMins.Value))
-        if (mins < 1)
-            mins := 1
-        return { type:"interval", minutes: mins }
+            return Map("type", "at", "time", Trim(edTime.Value))
+        if (typ = "interval")
+            return Map("type", "interval", "minutes", Integer(Trim(edMins.Value)))
+        ; fallback
+        return Map("type", "off")
     }
 
     _UiReadAction() {
-        return { type: ddAct.Text, value: Trim(edVal.Value) }
+        aType := ddAct.Text
+        val   := Trim(edVal.Value)
+        return Map("type", aType, "value", val)
     }
 
     SaveAndClose(*) {
-        t := {
-            id: (isEdit ? editId : "")
-          , title: Trim(edTitle.Value)
-          , trigger: _UiReadTrigger()
-          , action: _UiReadAction()
-          , inProgress: chkInProgress.Value = 1
-          , completed: false
-          , completedAt: ""
-        }
+        t := Map(
+            "id",         (isEdit ? editId : ""),
+            "title",      Trim(edTitle.Value),
+            "trigger",    _UiReadTrigger(),   ; <-- devuelve Map()
+            "action",     _UiReadAction(),    ; <-- devuelve Map()
+            "inProgress", chkInProgress.Value = 1,
+            "completed",  false,
+            "completedAt",""
+            )
 
-        if (t.title = "") {
+        if (Trim(edTitle.Value) = "") {
             MsgBox("El título no puede estar vacío.", "Validación", "Icon!")
             return
         }
@@ -326,7 +336,7 @@ _ToggleInProgressSelected() {
         MsgBox("No se encontró la tarea.")
         return
     }
-    TasksStore_UpdateById(id, { inProgress: !t.inProgress })
+    TasksStore_UpdateById(id, { inProgress: !_KV(t, "inProgress", false) })
     _RefreshAll()
 }
 
@@ -341,51 +351,54 @@ _ToggleTriggerSelected() {
         MsgBox("No se encontró la tarea.")
         return
     }
-    if (t.trigger.type = "off") {
+    if (_KV(_KV(t,"trigger",Map()), "type", "off") = "off") {
         MsgBox("Esta tarea ya está desactivada. Edita la tarea para configurar el trigger.")
         return
     }
     ; pausa / reanuda → si estaba activo, la pasamos temporalmente a off; si estaba offTemp, restaurar
-    if !ObjHasOwnProp(t, "triggerPaused") || !t.triggerPaused {
+    if !_KV(t, "triggerPaused", false) {
         ; pausar
-        TasksStore_UpdateById(id, { triggerPaused: true, triggerBackup: t.trigger, trigger: {type:"off"} })
+        TasksStore_UpdateById(id, { triggerPaused: true, triggerBackup: _KV(t,"trigger",Map()), trigger: {type:"off"} })
     } else {
         ; reanudar
-        trg := ObjHasOwnProp(t, "triggerBackup") ? t.triggerBackup : {type:"off"}
+        trg := _KV(t, "triggerBackup", {type:"off"})
         TasksStore_UpdateById(id, { triggerPaused: false, trigger: trg })
     }
     _RefreshAll()
 }
 
 _TriggerText(t) {
-    if t.trigger.type = "off"
+    trig := _KV(t,"trigger",Map())
+    typ  := _KV(trig,"type","off")
+    if typ = "off"
         return "off"
-    if t.trigger.type = "at" {
-        return "diario " t.trigger.time
+    if typ = "at" {
+        return "diario " _KV(trig,"time","")
     }
-    if t.trigger.type = "interval" {
-        mins := t.trigger.minutes
+    if typ = "interval" {
+        mins := _KV(trig,"minutes","")
         return "cada " mins " min"
     }
-    return t.trigger.type
+    return typ
 }
 
 _ActionText(t) {
-    a := t.action
-    if a.type = "openUrl"
+    a := _KV(t,"action",Map())
+    typ := _KV(a,"type","openUrl")
+    if typ = "openUrl"
         return "openUrl"
-    if a.type = "run"
+    if typ = "run"
         return "run"
-    if a.type = "sendText"
+    if typ = "sendText"
         return "sendText"
-    if a.type = "ahk"
+    if typ = "ahk"
         return "ahk"
-    return a.type
+    return typ
 }
 
 _Find(id) {
     for t in TasksStore_All()
-        if t.id = id
+        if _KV(t, "id", "") = id
             return t
     return 0
 }
@@ -393,22 +406,35 @@ _Find(id) {
 _CloneTask(t) {
     if !t
         return 0
-    ; copia superficial suficiente para editar
-    z := {}
-    for k,v in t
-        z.%k% := v
-    return z
+    return _DeepToMap(t)
 }
+
+; Convierte cualquier estructura (Object / Array / Map) a Map/Array (JSON-friendly)
+_DeepToMap(x) {
+    if !IsObject(x)
+        return x
+    if (x is Array) {
+        out := []
+        for , v in x
+            out.Push(_DeepToMap(v))
+        return out
+    }
+    ; Map u Object genérico -> Map
+    out := Map()
+    for k, v in x
+        out[k] := _DeepToMap(v)
+    return out
+}
+
 
 ; ---------------- Completadas ----------------
 _RefreshCompleted() {
     global gTasksGui, gPanelComp
-    ; borrar elementos previos “dibujados” en esta pestaña
-    ; estrategia: eliminar todo control que esté en la misma área
+    ; borrar elementos previos dibujados en el área de la pestaña "Completadas"
     for ctrl in gTasksGui {
         ctrl.GetPos(&x,&y,&w,&h)
         if (y>=50 && y<=420) && (x>=20 && x<=770) {
-            ; preservar el botón "Historial de Tareas" (está a y~430)
+            ; preserva el botón "Historial de Tareas" (está aprox. en y~430)
             if (ctrl.Type != "Button")
                 try ctrl.Destroy()
         }
@@ -419,16 +445,17 @@ _RefreshCompleted() {
     for d in dates {
         gTasksGui.Add("Text", "x20 y" y " w740 +0x200", "Fecha: " d) ; +0x200 = SS_CENTERIMAGE
         y += 22
-        ;lv := gTasksGui.Add("ListView", "x20 y" y " w750 h100 Grid", "Hora|Título")
         lv := gTasksGui.Add("ListView", "x20 y" y " w750 h100 Grid", ["Hora","Título"])
-
         lv.ModifyCol(1, 120), lv.ModifyCol(2, 600)
 
-        ; rellenar esa fecha
+        ; rellenar esa fecha (uso de _KV para robustez)
         for t in TasksStore_All() {
-            if t.completed && SubStr(t.completedAt,1,10) = d {
-                hour := SubStr(t.completedAt, 12)   ; "hh:mm tt"
-                lv.Add("", hour, t.title)
+            if _KV(t,"completed",false) {
+                ts := _KV(t,"completedAt","")
+                if (SubStr(ts,1,10) = d) {
+                    hour := (StrLen(ts) >= 12) ? SubStr(ts, 12) : ""
+                    lv.Add("", hour, _KV(t,"title",""))
+                }
             }
         }
         y += 110
@@ -450,7 +477,9 @@ _ShowHistory() {
     ; últimas 50 por completedAt desc (o updatedAt si no completada)
     arr := []
     for t in TasksStore_All() {
-        k := (t.completedAt != "") ? t.completedAt : t.updatedAt
+        compAt := _KV(t,"completedAt","")
+        updAt  := _KV(t,"updatedAt","")
+        k := (compAt != "") ? compAt : updAt
         arr.Push({ k:k, t:t })
     }
     arr.Sort((a,b) => (a.k < b.k) ? 1 : (a.k > b.k) ? -1 : 0)
@@ -460,7 +489,9 @@ _ShowHistory() {
         ++i
         if (i>50)
             break
-        lv.Add("", (t.completedAt!="")?t.completedAt:t.updatedAt, t.title, _ActionText(t))
+        compAt := _KV(t,"completedAt","")
+        updAt  := _KV(t,"updatedAt","")
+        lv.Add("", (compAt!="")?compAt:updAt, _KV(t,"title",""), _ActionText(t))
     }
 
     btnOpen := gHistGui.Add("Button", "x10 y320 w180", "Abrir carpeta de tareas")

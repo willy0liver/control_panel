@@ -50,22 +50,26 @@ TasksStore_All() {
 ; === API principal =======================================================
 
 TasksStore_Add(task) {
-    if (!ObjHasOwnProp(task, "id") || task.id = "" )
-        task.id := _TasksStore_NewId()          ; asigna id a nuevas
-    _TasksStore_Persist(task)                   ; <-- escribe a disco SIEMPRE
-    _TasksStore_AddToMemory(task)               ; <-- como lo hacías (array/map en memoria)
+    task := _AsMap(task)                        ; normaliza a Map()
+    if (!task.Has("id") || _IsBlank(task["id"]))
+        task["id"] := _TasksStore_NewId()       ; id nuevo si falta
+    _EnsureTaskDefaults(task)
+    _TasksStore_Persist(task)                   ; escribe a disco
+    _TasksStore_AddToMemory(task)               ; y a memoria
 }
 
 TasksStore_Update(id, task) {
-    task.id := id
-    _TasksStore_Persist(task)                   ; <-- sobrescribe archivo
-    _TasksStore_UpdateInMemory(id, task)        ; <-- como lo hacías
+    task := _AsMap(task)
+    task["id"] := id
+    _EnsureTaskDefaults(task)
+    _TasksStore_Persist(task)
+    _TasksStore_UpdateInMemory(id, task)
 }
 
 _TasksStore_UpdateInMemory(id, task) {
     arr := TasksStore_All()
     for i, t in arr {
-        if t.id = id {
+        if _AsMap(t)["id"] = id {
             arr[i] := task
             return true
         }
@@ -82,9 +86,10 @@ TasksStore_UpdateById(id, patch) {
     t := _FindById(id)
     if !t
         return false
+    t := _AsMap(t)
     for k,v in patch
-        t.%k% := v
-    t.updatedAt := _NowString()
+        t[k] := v
+    t["updatedAt"] := _NowString()
     TasksStore_SaveNow()
     return true
 }
@@ -92,7 +97,7 @@ TasksStore_UpdateById(id, patch) {
 TasksStore_Delete(id) {
     arr := TasksStore_All()
     loop arr.Length {
-        if arr[A_Index].id = id {
+        if _AsMap(arr[A_Index])["id"] = id {
             arr.RemoveAt(A_Index)
             TasksStore_SaveNow()
             return true
@@ -105,12 +110,13 @@ TasksStore_SetCompleted(id, completed := true) {
     t := _FindById(id)
     if !t
         return false
-    t.completed := completed
+    t := _AsMap(t)
+    t["completed"] := completed
     if completed
-        t.completedAt := _NowString()
+        t["completedAt"] := _NowString()
     else
-        t.completedAt := ""
-    t.updatedAt := _NowString()
+        t["completedAt"] := ""
+    t["updatedAt"] := _NowString()
     TasksStore_SaveNow()
     return true
 }
@@ -120,8 +126,11 @@ TasksStore_Last3CompletedDates() {
     seen := Map()
     dates := []
     for t in TasksStore_All() {
-        if t.completed && t.completedAt != "" {
-            d := SubStr(t.completedAt, 1, 10)  ; YYYY-MM-DD
+        t := _AsMap(t)
+        comp := t.Has("completed") ? t["completed"] : false
+        compAt := t.Has("completedAt") ? t["completedAt"] : ""
+        if comp && compAt != "" {
+            d := SubStr(compAt, 1, 10)  ; YYYY-MM-DD
             if !seen.Has(d) {
                 seen[d] := true
                 dates.Push(d)
@@ -154,29 +163,57 @@ _Tasks_SortDatesDesc(arr) {
 ; === Utilidades internas =================================================
 
 _TasksStore_NewId() {
-    ; timestamp + tickcount para que sea único y ordenable
-    ts := FormatTime("yyyyMMddHHmmss")
+    ; timestamp + tickcount (sin caracteres inválidos)
+    ; OJO: en AHK v2 el formato va en el 2º parámetro
+    ts := FormatTime(, "yyyyMMddHHmmss")
     return ts "_" A_TickCount
 }
 
+; Convierte recursivamente cualquier estructura (Object/Array/Map)
+; a algo serializable por JXON (Map y Array).
+_TasksStore_ToJsonReady(x) {
+    if !IsObject(x)
+        return x
+    if (x is Array) {
+        out := []
+        for , v in x
+            out.Push(_TasksStore_ToJsonReady(v))
+        return out
+    }
+    ; Map o Object genérico -> siempre lo convertimos a Map
+    out := Map()
+    for k, v in x
+        out[k] := _TasksStore_ToJsonReady(v)
+    return out
+}
+
 _TasksStore_Persist(task) {
+    task := _AsMap(task)
     dir := TasksStore_Dir()
-    if !DirExist(dir)
-        DirCreate(dir)
+    if !DirExist(dir) {
+        try DirCreate(dir)
+        catch as e {
+            MsgBox("No se pudo crear la carpeta de tareas:`n" dir "`n`n" e.Message, "Error", "Iconx")
+            return false
+        }
+    }
+    id := task.Has("id") ? task["id"] : ""
+    if _IsBlank(id)
+        id := _TasksStore_NewId(), task["id"] := id
+    ; Blindaje extra: por si viniera con algún caracter inválido
+    id := RegExReplace(id, '[:\\/\\*\?"<>|]', "-")
+    path := dir "\" id ".json"
 
-    path := dir "\" task.id ".json"
-
-    ; Usa tu JSON lib (ajusta el nombre si difiere)
-    json := Jxon_Dump(task)  ; si tu lib se llama distinto, ponlo aquí
-
-    f := FileOpen(path, "w", "UTF-8")
+    json := Jxon_Dump(_TasksStore_ToJsonReady(task))
     try {
-        f.Write(json)
-        f.Close()
+        f := FileOpen(path, "w", "UTF-8")
+        f.Write(json), f.Close()
     } catch as e {
         try f.Close()
         MsgBox("No se pudo guardar la tarea:`n" path "`n`n" e.Message, "Error", "Iconx")
+        return false
     }
+    return true
 }
 
 _LoadFromDisk() {
@@ -219,47 +256,44 @@ TasksStore_SaveNow() {
 
 _FindById(id) {
     for t in TasksStore_All()
-        if t.id = id
+        if _AsMap(t)["id"] = id
             return t
     return 0
 }
 
 
 _EnsureTaskDefaults(t) {
-    if !ObjHasOwnProp(t, "id"){
-        t.id := ""
-    }
-    if !ObjHasOwnProp(t, "title"){
-        t.title := ""
-    }
-    if !ObjHasOwnProp(t, "trigger"){
-        t.trigger := { type:"off" }  ; off|at|interval
-    }
-    if !ObjHasOwnProp(t, "action"){
-        t.action := { type:"openUrl", value:"" }
-    }
-    if !ObjHasOwnProp(t, "inProgress"){
-        t.inProgress := false
-    }
-    if !ObjHasOwnProp(t, "completed"){
-        t.completed := false
-    }
-    if !ObjHasOwnProp(t, "completedAt"){
-        t.completedAt := ""
-    }
-    if !ObjHasOwnProp(t, "createdAt"){
-        t.createdAt := _NowString()
-    }
-    if !ObjHasOwnProp(t, "updatedAt"){
-        t.updatedAt := t.createdAt
-    }
+    t := _AsMap(t)
+    if !t.Has("id")          t["id"] := ""
+    if !t.Has("title")       t["title"] := ""
+    if !t.Has("trigger")     t["trigger"] := Map("type","off") ; off|at|interval
+    if !t.Has("action")      t["action"] := Map("type","openUrl","value","")
+    if !t.Has("inProgress")  t["inProgress"] := false
+    if !t.Has("completed")   t["completed"] := false
+    if !t.Has("completedAt") t["completedAt"] := ""
+    if !t.Has("createdAt")   t["createdAt"] := _NowString()
+    if !t.Has("updatedAt")   t["updatedAt"] := t["createdAt"]
     ; scheduler helpers
-    if !ObjHasOwnProp(t, "lastDateRun"){
-        t.lastDateRun := ""   ; para type=at (YYYY-MM-DD ya ejecutó)
-    }
-    if !ObjHasOwnProp(t, "nextRunAt"){
-        t.nextRunAt := ""     ; para type=interval (YYYY-MM-DD HH:mm tt)
-    }
+    if !t.Has("lastDateRun") t["lastDateRun"] := ""   ; YYYY-MM-DD
+    if !t.Has("nextRunAt")   t["nextRunAt"] := ""     ; YYYY-MM-DD HH:mm tt
+    return t
+}
+
+; --- Normalizadores/ayudas ----------------------------------------------
+_AsMap(x) {
+    if (x is Map)
+        return x
+    if !IsObject(x)       ; primitivos
+        return x
+    ; Object {} -> Map() recursivo
+    out := Map()
+    for k, v in x
+        out[k] := _AsMap(v)
+    return out
+}
+
+_IsBlank(v) {
+    return (!IsObject(v) && Trim(v "") = "")
 }
 
 _NewId() {
