@@ -32,7 +32,8 @@ TasksStore_Init() {
         catch as e
             MsgBox("No se pudo crear la carpeta de tareas:`n" dir "`n`n" e.Message, "Error", "Iconx")
     }
-    ; Si cargas tareas desde disco, déjalo como lo tenías aquí.
+    ; Cargar todas las tareas guardadas como archivos JSON individuales
+    _TasksStore_LoadAllFromFiles()
 }
 
 TasksStore_Path() {
@@ -126,8 +127,13 @@ TasksStore_Last3CompletedDates() {
     seen := Map()
     dates := []
     for t in TasksStore_All() {
+        ; Si por algún motivo hay un elemento no-objeto, lo ignoramos
+        if !IsObject(t)
+            continue
         t := _AsMap(t)
-        comp := t.Has("completed") ? t["completed"] : false
+        if !(t is Map)
+            continue
+        comp   := t.Has("completed")   ? t["completed"]   : false
         compAt := t.Has("completedAt") ? t["completedAt"] : ""
         if comp && compAt != "" {
             d := SubStr(compAt, 1, 10)  ; YYYY-MM-DD
@@ -246,12 +252,15 @@ _LoadFromDisk() {
 }
 
 TasksStore_SaveNow() {
+    ; 1) persistir cada tarea a su propio archivo (mantiene estado actualizado)
+    for t in TasksStore_All()
+        _TasksStore_Persist(t)
+    ; 2) (opcional) snapshot agregado tasks.json como respaldo
     global gTasksData
     path := TasksStore_Path()
     json := _DumpJson(gTasksData)
     f := FileOpen(path, "w", "UTF-8")
-    f.Write(json)
-    f.Close()
+    f.Write(json), f.Close()
 }
 
 _FindById(id) {
@@ -294,6 +303,36 @@ _AsMap(x) {
 
 _IsBlank(v) {
     return (!IsObject(v) && Trim(v "") = "")
+}
+
+; ---------- NUEVO: cargar todas las tareas desde /tareas/*.json ----------
+_TasksStore_LoadAllFromFiles() {
+    arr := []
+    dir := TasksStore_Dir()
+    if !DirExist(dir) {
+        global gTasksData := { tasks: [] }
+        return
+    }
+    Loop Files, dir "\*.json", "F" {
+        path := A_LoopFileFullPath
+        try {
+            txt := FileRead(path, "UTF-8")
+            txt := RegExReplace(txt, "^\xEF\xBB\xBF")
+            v := 0
+            try v := Jxon_Load2(&txt)
+            catch {
+                v := 0
+            }
+            if IsObject(v) {
+                v := _AsMap(v)
+                v := _EnsureTaskDefaults(v)
+                arr.Push(v)
+            }
+        } catch {
+            ; archivo inválido: lo ignoramos
+        }
+    }
+    global gTasksData := { tasks: arr }
 }
 
 _NewId() {

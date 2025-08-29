@@ -429,12 +429,11 @@ _DeepToMap(x) {
 
 ; ---------------- Completadas ----------------
 _RefreshCompleted() {
-    global gTasksGui, gPanelComp
-    ; borrar elementos previos dibujados en el área de la pestaña "Completadas"
+    global gTasksGui
+    ; limpiar controles previos “dibujados” en el área de Completadas
     for ctrl in gTasksGui {
         ctrl.GetPos(&x,&y,&w,&h)
         if (y>=50 && y<=420) && (x>=20 && x<=770) {
-            ; preserva el botón "Historial de Tareas" (está aprox. en y~430)
             if (ctrl.Type != "Button")
                 try ctrl.Destroy()
         }
@@ -448,14 +447,12 @@ _RefreshCompleted() {
         lv := gTasksGui.Add("ListView", "x20 y" y " w750 h100 Grid", ["Hora","Título"])
         lv.ModifyCol(1, 120), lv.ModifyCol(2, 600)
 
-        ; rellenar esa fecha (uso de _KV para robustez)
+        ; rellenar esa fecha
         for t in TasksStore_All() {
-            if _KV(t,"completed",false) {
+            if _KV(t,"completed",false) && SubStr(_KV(t,"completedAt",""),1,10) = d {
                 ts := _KV(t,"completedAt","")
-                if (SubStr(ts,1,10) = d) {
-                    hour := (StrLen(ts) >= 12) ? SubStr(ts, 12) : ""
-                    lv.Add("", hour, _KV(t,"title",""))
-                }
+                hour := (StrLen(ts) >= 12) ? SubStr(ts, 12) : ""
+                lv.Add("", hour, _KV(t,"title",""))
             }
         }
         y += 110
@@ -463,6 +460,7 @@ _RefreshCompleted() {
             break
     }
 }
+
 
 _ShowHistory() {
     global gHistGui
