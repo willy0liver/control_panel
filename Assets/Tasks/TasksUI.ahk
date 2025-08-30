@@ -430,7 +430,8 @@ _DeepToMap(x) {
 ; ---------------- Completadas ----------------
 _RefreshCompleted() {
     global gTasksGui
-    ; limpiar controles previos “dibujados” en el área de Completadas
+
+    ; Limpiar controles previos dibujados en el área de la pestaña
     for ctrl in gTasksGui {
         ctrl.GetPos(&x,&y,&w,&h)
         if (y>=50 && y<=420) && (x>=20 && x<=770) {
@@ -439,22 +440,25 @@ _RefreshCompleted() {
         }
     }
 
-    dates := TasksStore_Last3CompletedDates()
+    dates := TasksStore_Last3CompletedDates()  ; ["YYYY-MM-DD", ...] desc
     y := 50
     for d in dates {
-        gTasksGui.Add("Text", "x20 y" y " w740 +0x200", "Fecha: " d) ; +0x200 = SS_CENTERIMAGE
+        gTasksGui.Add("Text", "x20 y" y " w740 +0x200", "Fecha: " d)
         y += 22
+
         lv := gTasksGui.Add("ListView", "x20 y" y " w750 h100 Grid", ["Hora","Título"])
         lv.ModifyCol(1, 120), lv.ModifyCol(2, 600)
 
-        ; rellenar esa fecha
+        ; rellenar tareas de esa fecha
         for t in TasksStore_All() {
-            if _KV(t,"completed",false) && SubStr(_KV(t,"completedAt",""),1,10) = d {
-                ts := _KV(t,"completedAt","")
-                hour := (StrLen(ts) >= 12) ? SubStr(ts, 12) : ""
-                lv.Add("", hour, _KV(t,"title",""))
-            }
+            comp := _KV(t,"completed",false)
+            compAt := _KV(t,"completedAt","")
+            if !comp || SubStr(compAt,1,10) != d
+                continue
+            hour := (StrLen(compAt) >= 12) ? SubStr(compAt, 12) : ""
+            lv.Add("", hour, _KV(t,"title",""))
         }
+
         y += 110
         if (y > 360)
             break

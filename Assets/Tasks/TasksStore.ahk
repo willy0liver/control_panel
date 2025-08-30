@@ -32,8 +32,8 @@ TasksStore_Init() {
         catch as e
             MsgBox("No se pudo crear la carpeta de tareas:`n" dir "`n`n" e.Message, "Error", "Iconx")
     }
-    ; Cargar todas las tareas guardadas como archivos JSON individuales
-    _TasksStore_LoadAllFromFiles()
+    ; Si cargas tareas desde disco, déjalo como lo tenías aquí.
+    _LoadDirTasks()
 }
 
 TasksStore_Path() {
@@ -306,34 +306,53 @@ _IsBlank(v) {
 }
 
 ; ---------- NUEVO: cargar todas las tareas desde /tareas/*.json ----------
-_TasksStore_LoadAllFromFiles() {
+_LoadDirTasks() {
+    global gTasksData
     arr := []
     dir := TasksStore_Dir()
-    if !DirExist(dir) {
-        global gTasksData := { tasks: [] }
-        return
-    }
-    Loop Files, dir "\*.json", "F" {
-        path := A_LoopFileFullPath
+    Loop Files, dir "\*.json" {
+        txt := ""
         try {
-            txt := FileRead(path, "UTF-8")
-            txt := RegExReplace(txt, "^\xEF\xBB\xBF")
-            v := 0
-            try v := Jxon_Load2(&txt)
+            txt := FileRead(A_LoopFileFullPath, "UTF-8")
+        } catch {
+            continue
+        }
+        ; quitar BOM si lo hay
+        txt := RegExReplace(txt, "^\xEF\xBB\xBF")
+        v := 0
+        ; primero intentamos el loader de comillas simples (Jxon_Dump)
+        try v := Jxon_Load2(&txt)
+        catch {
+            ; si el archivo tiene JSON estándar (comillas dobles)
+            try v := Jxon_Load(&txt)
             catch {
                 v := 0
             }
-            if IsObject(v) {
-                v := _AsMap(v)
-                v := _EnsureTaskDefaults(v)
-                arr.Push(v)
-            }
-        } catch {
-            ; archivo inválido: lo ignoramos
         }
+        if !IsObject(v)
+            continue
+
+        t := _AsMap(v)
+        ; si no trae id, usamos el nombre del archivo
+        id := t.Has("id") ? t["id"] : ""
+        if _IsBlank(id) {
+            SplitPath(A_LoopFileFullPath, &name)
+            t["id"] := name
+        }
+        ; completar defaults (crea createdAt si está vacío)
+        _EnsureTaskDefaults(t)
+        ; fallback extra: si sigue sin createdAt, usar hora del archivo
+        if _IsBlank(t["createdAt"]) {
+            try {
+                ts := FileGetTime(A_LoopFileFullPath, "M")
+                t["createdAt"] := FormatTime(ts, "yyyy-MM-dd hh:mm tt")
+            }
+        }
+        arr.Push(t)
     }
-    global gTasksData := { tasks: arr }
+    gTasksData := { tasks: arr }
 }
+
 
 _NewId() {
     buf := Buffer(16)

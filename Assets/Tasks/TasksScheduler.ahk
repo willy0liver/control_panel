@@ -35,40 +35,46 @@ TasksScheduler_Stop() {
 }
 
 TasksScheduler_Tick(*) {
-    now := _NowString()
-    today := SubStr(now,1,10)
-    nowTime := FormatTime(, "HHmm")   ; 24h para comparar "at"
+    now    := _NowString()
+    today  := SubStr(now, 1, 10)
+    nowHHm := FormatTime(, "HHmm")  ; 24h para comparar triggers "at"
 
     for t in TasksStore_All() {
-        ; Accesos seguros (soporta Map() y Object {})
-        trig := _KV(t, "trigger", Map())
-        typ  := _KV(trig, "type", "off")
+        ; Normaliza por si vino como Object {} en vez de Map()
+        t := _AsMap(t)
 
-        if _KV(t, "completed", false)
+        ; Saltar completadas
+        if (t.Has("completed") && t["completed"])
             continue
+
+        trg := _AsMap( t.Has("trigger") ? t["trigger"] : Map() )
+        typ := trg.Has("type") ? trg["type"] : "off"
         if (typ = "off")
             continue
 
         if (typ = "at") {
-            trg := _NormalizeTimeToHHmm(_KV(trig, "time", ""))
-            if (trg = "")
+            hhmm := _NormalizeTimeToHHmm( trg.Has("time") ? trg["time"] : "" )
+            if (hhmm = "")
                 continue
-            if (_KV(t,"lastDateRun","") != today && nowTime >= trg) {
+            last := t.Has("lastDateRun") ? t["lastDateRun"] : ""
+            if (last != today && nowHHm >= hhmm) {
                 _RunTaskAction(t)
                 t["lastDateRun"] := today
                 t["updatedAt"]   := _NowString()
                 TasksStore_SaveNow()
             }
+
         } else if (typ = "interval") {
-            mins := Integer(_KV(trig, "minutes", 0))
+            mins := trg.Has("minutes") ? Integer(trg["minutes"]) : 0
             if (mins < 1)
                 continue
-            nextRun := _KV(t, "nextRunAt", "")
-            if (nextRun = "") {
+
+            next := t.Has("nextRunAt") ? t["nextRunAt"] : ""
+            if (next = "") {
                 t["nextRunAt"] := _AddMinutes(_NowString(), mins)
                 t["updatedAt"] := _NowString()
                 TasksStore_SaveNow()
-            } else if (_NowGE(nextRun, now)) {
+            } else if (_NowGE(next, now)) {   ; corre si next <= now
                 _RunTaskAction(t)
                 t["nextRunAt"] := _AddMinutes(_NowString(), mins)
                 t["updatedAt"] := _NowString()
@@ -77,6 +83,7 @@ TasksScheduler_Tick(*) {
         }
     }
 }
+
 
 _RunTaskAction(t) {
     act := _KV(t, "action", Map())
