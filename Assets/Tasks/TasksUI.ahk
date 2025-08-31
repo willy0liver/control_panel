@@ -54,7 +54,8 @@ Tasks_Show() {
 
 _BuildGui() {
     global gTasksGui, gLV_Pend, gPanelComp
-    gTasksGui := Gui("+AlwaysOnTop", "Tareas")
+    ;gTasksGui := Gui("+AlwaysOnTop", "Tareas")
+    gTasksGui := Gui("+AlwaysOnTop +OwnDialogs", "Tareas")
     tabs := gTasksGui.Add("Tab3", "x10 y10 w780 h480", ["Pendientes", "Completadas"])
 
     ; -------- Pestaña: Pendientes --------
@@ -152,6 +153,7 @@ _NewTaskDialog(editId := "") {
 
     title := isEdit ? "Editar Tarea" : "Nueva Tarea"
     dlg := Gui("+Owner" gTasksGui.Hwnd, title)
+    dlg.Opt("+OwnDialogs")          ; los MsgBox de validación salen sobre este diálogo
     dlg.OnEvent("Close", (*)  => dlg.Destroy())
     dlg.OnEvent("Escape", (*) => dlg.Destroy())
 
@@ -306,10 +308,12 @@ _EditSelected() {
 _DeleteSelected() {
     id := _GetSelectedId()
     if (id = "") {
-        MsgBox("Selecciona una tarea.")
+        ;MsgBox("Selecciona una tarea.")
+        _OwnedMsgBox(gTasksGui, "Selecciona una tarea.", "Aviso")
         return
     }
-    if (MsgBox("¿Eliminar la tarea seleccionada?", "Confirmar", "YesNo Icon!") = "Yes") {
+    ;if (MsgBox("¿Eliminar la tarea seleccionada?", "Confirmar", "YesNo Icon!") = "Yes") {
+    if (_AskYesNo(gTasksGui, "¿Eliminar la tarea seleccionada?", "Confirmar")) {
         TasksStore_Delete(id)
         _RefreshAll()
     }
@@ -472,7 +476,8 @@ _ShowHistory() {
         gHistGui.Show()
         return
     }
-    gHistGui := Gui("+Owner", "Historial de Tareas")
+    ;gHistGui := Gui("+Owner", "Historial de Tareas")
+    gHistGui := Gui("+Owner +OwnDialogs", "Historial de Tareas")
     lv := gHistGui.Add("ListView", "x10 y10 w560 h300 Grid", "Fecha|Título|Acción")
     lv.ModifyCol(1, 160), lv.ModifyCol(2, 240), lv.ModifyCol(3, 140)
 
@@ -575,4 +580,30 @@ _ErrWatch_Tick() {
         }
         return
     }
+}
+
+; --- Helpers: MsgBox propietario/topmost ---
+_AskYesNo(ownerGui, text, title := "Confirmar") {
+    hwnd  := IsObject(ownerGui) ? ownerGui.Hwnd : ownerGui
+    ; MB_YESNO(0x4) | MB_ICONQUESTION(0x20) | MB_TOPMOST(0x40000)
+    flags := 0x00000004 | 0x00000020 | 0x00040000
+    r := DllCall("user32\MessageBoxW"
+               , "ptr",  hwnd
+               , "wstr", text
+               , "wstr", title
+               , "uint", flags
+               , "int")
+    return (r = 6) ; IDYES
+}
+
+_OwnedMsgBox(ownerGui, text, title := "Mensaje") {
+    hwnd  := IsObject(ownerGui) ? ownerGui.Hwnd : ownerGui
+    ; MB_OK(0x0) | MB_ICONEXCLAMATION(0x30) | MB_TOPMOST(0x40000)
+    flags := 0x00000030 | 0x00040000
+    DllCall("user32\MessageBoxW"
+          , "ptr",  hwnd
+          , "wstr", text
+          , "wstr", title
+          , "uint", flags
+          , "int")
 }
