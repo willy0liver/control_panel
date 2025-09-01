@@ -1,86 +1,263 @@
 ; ============================================
 ; TasksStore.ahk  (AHK v2)
 ; Persistencia y utilitarios de tareas
-; - API:
-;   TasksStore_Init()
-;   TasksStore_All()                   -> Array de tareas (en memoria)
-;   TasksStore_Add(taskObj)            -> id
-;   TasksStore_UpdateById(id, patch)
-;   TasksStore_Delete(id)
-;   TasksStore_SetCompleted(id, completed := true)
-;   TasksStore_SaveNow()
-;   TasksStore_Path()
-;   TasksStore_Last3CompletedDates()   -> Array fechas (YYYY-MM-DD) desc
+; >>> Modelo de 1 archivo por día: YYYYMMDD.json
+;
+;  API pública:
+;   - TasksStore_Init()
+;   - TasksStore_All()                   -> Array de tareas (en memoria; normalmente las de HOY)
+;   - TasksStore_Add(taskObj)            -> id
+;   - TasksStore_Update(id, taskObj)
+;   - TasksStore_UpdateById(id, patch)
+;   - TasksStore_Delete(id)
+;   - TasksStore_SetCompleted(id, completed := true)
+;   - TasksStore_SaveNow()               -> persiste a YYYYMMDD.json de HOY
+;   - TasksStore_Last3CompletedDates()   -> Array fechas (YYYY-MM-DD) desc (basado en tareas cargadas)
+;   - TasksStore_Dir()
+;   - TasksStore_Path()                  -> ruta del archivo de HOY (YYYYMMDD.json)
 ; ============================================
 
 #Include ../../Assets/Json.ahk
 
-global gTasksData := { tasks: [] }
-global gTasksLoaded := false
+global gTasksData := { tasks: [] }  ; SIEMPRE mantiene en memoria el conjunto actual (normalmente HOY)
 
-; === Config y estado =====================================================
+; === Config y helpers de fecha/archivos ==================================
+
 TasksStore_Dir() {
-    static dir := A_ScriptDir "\tareas"   ; cambia si prefieres otra carpeta
+    static dir := A_ScriptDir "\tareas"
     return dir
 }
 
-; Llama una sola vez al iniciar Tareas_Show()
-TasksStore_Init() {
+_TodayYYYYMMDD() {
+    return FormatTime(, "yyyyMMdd")
+}
+
+_DailyPath(dateYYYYMMDD) {
+    return TasksStore_Dir() "\" dateYYYYMMDD ".json"
+}
+
+TasksStore_Path() {
+    ; utilidad: devuelve el path del archivo del día actual
+    return _DailyPath(_TodayYYYYMMDD())
+}
+
+_EnsureDir() {
     dir := TasksStore_Dir()
     if !DirExist(dir) {
         try DirCreate(dir)
         catch as e
             MsgBox("No se pudo crear la carpeta de tareas:`n" dir "`n`n" e.Message, "Error", "Iconx")
     }
-    ; Si cargas tareas desde disco, déjalo como lo tenías aquí.
-    _LoadDirTasks()
 }
 
-TasksStore_Path() {
-    base := A_ScriptDir "\tareas"
-    if !DirExist(base)
-        DirCreate(base)
-    return base "\tasks.json"
+_ListDailyFiles() {
+    arr := []
+    Loop Files, TasksStore_Dir() "\*.json", "F" {
+        if RegExMatch(A_LoopFileName, "^\d{8}\.json$")
+            arr.Push(A_LoopFileFullPath)
+    }
+    return arr
 }
+
+_FindLatestDailyFile() {
+    files := _ListDailyFiles()
+    if files.Length = 0
+        return ""
+    names := []
+    for f in files {
+        SplitPath f, &name
+        names.Push(name)
+    }
+    ; ordenar descendente por nombre (YYYYMMDD.json)
+    names := StrSplit(Sort(StrJoin(names, "`n"), "R"), "`n")
+    return TasksStore_Dir() "\" names[1]
+}
+
+_LoadJsonFile(path) {
+    if !FileExist(path)
+        return { tasks: [] }
+    txt := ""
+    try txt := FileRead(path, "UTF-8")
+    catch
+        return { tasks: [] }
+
+    txt := RegExReplace(txt, "^\xEF\xBB\xBF")
+    v := Trim(txt, "`r`n`t ")
+    data := 0
+    try
+        data := Jxon_Load2(&v)
+    catch
+        data := 0
+
+    if !IsObject(data) || !ObjHasOwnProp(data, "tasks") || !(data.tasks is Array)
+        data := { tasks: [] }
+
+    ; normalizar
+    for t in data.tasks
+        _EnsureTaskDefaults(t)
+
+    return data
+}
+
+_SaveJsonFile(path, data) {
+    ; Escribimos con dumper propio (JSON válido con comillas dobles)
+    json := _DumpJson(data)
+    f := FileOpen(path, "w", "UTF-8")
+    try {
+        f.Write(json), f.Close()
+    } catch as e {
+        try f.Close()
+        MsgBox("No se pudo guardar:`n" path "`n`n" e.Message, "Error", "Iconx")
+    }
+}
+
+; ===== Dumper JSON simple y robusto (usa comillas dobles) =================
+
+_DumpJson(v) {
+    t := Type(v)
+    if (t = "String") {
+        return _JQ(v)
+    } else if (t = "Integer" || t = "Float") {
+        return v ""   ; números tal cual (booleans en AHK son enteros 0/1 y funcionan)
+    } else if (t = "Array") {
+        parts := []
+        for itm in v
+            parts.Push(_DumpJson(itm))
+        return "[" . StrJoin(parts, ",") . "]"
+    } else if (t = "Map" || t = "Object") {
+        parts := []
+        ; Intento de enumeración directa
+        ok := true
+        try {
+            for k, val in v
+                parts.Push(_JQ(k) ":" _DumpJson(val))
+        } catch {
+            ok := false
+        }
+        if !ok {
+            ; Fallback: recorrer solo propiedades propias (si el objeto no es enumerable)
+            try {
+                for k in _OwnPropNames(v) {
+                    val := ""
+                    try val := v.%k%
+                    parts.Push(_JQ(k) ":" _DumpJson(val))
+                }
+            }
+        }
+        return "{" . StrJoin(parts, ",") . "}"
+    } else if (v = "" || v = 0) {
+        ; Para “null-like” del proyecto puedes devolver "" (string vacío)
+        ; Si prefieres null JSON estándar, usa: return "null"
+        return _JQ("")
+    }
+    ; Cualquier otro tipo raro -> a string
+    return _JQ(v "")
+}
+
+_JQ(s) {
+    ; Escapes básicos JSON
+    s := StrReplace(s, "\", "\\")
+    s := StrReplace(s, '""', '\""')
+    s := StrReplace(s, '`r', "\r")
+    s := StrReplace(s, "`n", "\n")
+    s := StrReplace(s, "`t", "\t")
+    return '""' s '""'
+}
+
+_OwnPropNames(obj) {
+    ; Devuelve nombres de propiedades “propias” cuando el objeto no es enumerable
+    ; No todos los objetos necesitan esto; es un fallback seguro.
+    names := []
+    ; Si ObjOwnProps no existe, esto seguirá protegiendo con try/catch
+    try {
+        ; En muchos builds de AHK v2 no hay API directa para listar,
+        ; así que aquí no hacemos nada especial: devolvemos vacío.
+        ; (si tu build aporta algo, puedes rellenarlo aquí)
+    }
+    return names
+}
+
+
+
+; === Inicialización: cargar HOY o migrar pendientes desde el último ======
+
+TasksStore_Init() {
+    _EnsureDir()
+    _LoadTodayOrMigrate()
+}
+
+_LoadTodayOrMigrate() {
+    global gTasksData
+    _EnsureDir()
+
+    today := _TodayYYYYMMDD()
+    pathToday := _DailyPath(today)
+
+    ; Si existe hoy → cargarlo y listo
+    if FileExist(pathToday) {
+        gTasksData := _LoadJsonFile(pathToday)
+        return
+    }
+
+    ; No existe hoy → buscar último archivo
+    latest := _FindLatestDailyFile()
+    if (latest = "") {
+        ; no hay nada previo → crear el de hoy vacío
+        gTasksData := { tasks: [] }
+        _SaveJsonFile(pathToday, gTasksData)
+        return
+    }
+
+    ; Migración: trae PENDIENTES del último archivo hacia HOY
+    prev := _LoadJsonFile(latest)
+    pend := []
+    done := []
+
+    for t in prev.tasks {
+        tt := _EnsureTaskDefaults(t)
+        if (tt["completed"])
+            done.Push(tt)
+        else
+            pend.Push(tt)
+    }
+
+    ; HOY = pendientes (si hay)
+    gTasksData := { tasks: pend }
+    _SaveJsonFile(pathToday, gTasksData)
+
+    ; El anterior queda solo con completadas
+    if (pend.Length > 0) {
+        _SaveJsonFile(latest, { tasks: done })
+    }
+}
+
+; === Lectura en memoria ===================================================
 
 TasksStore_All() {
     global gTasksData
     return gTasksData.tasks
 }
 
-; === API principal =======================================================
+; === API principal (escrituras SIEMPRE contra el archivo de HOY) =========
 
 TasksStore_Add(task) {
-    task := _AsMap(task)                        ; normaliza a Map()
+    task := _AsMap(task)
     if (!task.Has("id") || _IsBlank(task["id"]))
-        task["id"] := _TasksStore_NewId()       ; id nuevo si falta
+        task["id"] := _TasksStore_NewId()
     _EnsureTaskDefaults(task)
-    _TasksStore_Persist(task)                   ; escribe a disco
-    _TasksStore_AddToMemory(task)               ; y a memoria
+
+    _TasksStore_AddToMemory(task)
+    TasksStore_SaveNow()
+    return task["id"]
 }
 
 TasksStore_Update(id, task) {
     task := _AsMap(task)
     task["id"] := id
     _EnsureTaskDefaults(task)
-    _TasksStore_Persist(task)
+
     _TasksStore_UpdateInMemory(id, task)
-}
-
-_TasksStore_UpdateInMemory(id, task) {
-    arr := TasksStore_All()
-    for i, t in arr {
-        if _AsMap(t)["id"] = id {
-            arr[i] := task
-            return true
-        }
-    }
-    return false
-}
-
-_TasksStore_AddToMemory(task) {
-    global gTasksData
-    gTasksData.tasks.Push(task)
+    TasksStore_SaveNow()
 }
 
 TasksStore_UpdateById(id, patch) {
@@ -122,18 +299,22 @@ TasksStore_SetCompleted(id, completed := true) {
     return true
 }
 
+TasksStore_SaveNow() {
+    global gTasksData
+    _EnsureDir()
+    path := _DailyPath(_TodayYYYYMMDD())
+    _SaveJsonFile(path, gTasksData)
+}
+
+; === Consultas auxiliares (basadas en las tareas cargadas actualmente) ===
+
 TasksStore_Last3CompletedDates() {
-    ; devuelve últimas 3 fechas (YYYY-MM-DD) con tareas completadas
+    ; Fechas (YYYY-MM-DD) con alguna tarea completada en el conjunto cargado (normalmente HOY)
     seen := Map()
     dates := []
     for t in TasksStore_All() {
-        ; Si por algún motivo hay un elemento no-objeto, lo ignoramos
-        if !IsObject(t)
-            continue
         t := _AsMap(t)
-        if !(t is Map)
-            continue
-        comp   := t.Has("completed")   ? t["completed"]   : false
+        comp := t.Has("completed") ? t["completed"] : false
         compAt := t.Has("completedAt") ? t["completedAt"] : ""
         if comp && compAt != "" {
             d := SubStr(compAt, 1, 10)  ; YYYY-MM-DD
@@ -143,15 +324,12 @@ TasksStore_Last3CompletedDates() {
             }
         }
     }
-    ; ordenar desc
-    ; NEW (compatible y simple)
     dates := _Tasks_SortDatesDesc(dates)
     if (dates.Length > 3)
         dates.Length := 3
     return dates
 }
 
-; Ordena un array de fechas YYYY-MM-DD en orden descendente (compat v2 sin Array.Sort)
 _Tasks_SortDatesDesc(arr) {
     if !(arr is Array) || arr.Length <= 1
         return arr
@@ -159,19 +337,15 @@ _Tasks_SortDatesDesc(arr) {
     for d in arr
         s .= d "`n"
     s := RTrim(s, "`n")
-    s := Sort(s, "R")                 ; "R" = reverse (desc); lexicográfico sirve para YYYY-MM-DD
+    s := Sort(s, "R")   ; lexicográfico sirve para YYYY-MM-DD
     return StrSplit(s, "`n")
 }
 
-
-; ---------- Internos ----------
-
-; === Utilidades internas =================================================
+; === Internos =============================================================
 
 _TasksStore_NewId() {
-    ; timestamp + tickcount (sin caracteres inválidos)
-    ; OJO: en AHK v2 el formato va en el 2º parámetro
-    ts := FormatTime(, "yyyyMMddHHmmss")
+    ; timestamp + tickcount para que sea único y ordenable
+    ts := FormatTime("yyyyMMddHHmmss")
     return ts "_" A_TickCount
 }
 
@@ -180,87 +354,53 @@ _TasksStore_NewId() {
 _TasksStore_ToJsonReady(x) {
     if !IsObject(x)
         return x
+
+    ; Arrays -> []
     if (x is Array) {
         out := []
         for , v in x
             out.Push(_TasksStore_ToJsonReady(v))
         return out
     }
-    ; Map o Object genérico -> siempre lo convertimos a Map
-    out := Map()
-    for k, v in x
-        out[k] := _TasksStore_ToJsonReady(v)
+
+    ; Map() u Object() -> {} (plain object para JXON)
+    out := {}
+    ok := true
+    try {
+        ; Enumeración directa (rápida)
+        for k, v in x
+            out.%k% := _TasksStore_ToJsonReady(v)
+    } catch {
+        ok := false
+    }
+    if !ok {
+        ; Fallback: enumerar solo props propias por nombre
+        try {
+            for k in ObjOwnProps(x) {
+                val := ""
+                try val := x.%k%
+                out.%k% := _TasksStore_ToJsonReady(val)
+            }
+        }
+    }
     return out
 }
 
-_TasksStore_Persist(task) {
-    task := _AsMap(task)
-    dir := TasksStore_Dir()
-    if !DirExist(dir) {
-        try DirCreate(dir)
-        catch as e {
-            MsgBox("No se pudo crear la carpeta de tareas:`n" dir "`n`n" e.Message, "Error", "Iconx")
-            return false
+
+_TasksStore_UpdateInMemory(id, task) {
+    arr := TasksStore_All()
+    for i, t in arr {
+        if _AsMap(t)["id"] = id {
+            arr[i] := task
+            return true
         }
     }
-    id := task.Has("id") ? task["id"] : ""
-    if _IsBlank(id)
-        id := _TasksStore_NewId(), task["id"] := id
-    ; Blindaje extra: por si viniera con algún caracter inválido
-    id := RegExReplace(id, '[:\\/\\*\?"<>|]', "-")
-    path := dir "\" id ".json"
-
-    json := Jxon_Dump(_TasksStore_ToJsonReady(task))
-    try {
-        f := FileOpen(path, "w", "UTF-8")
-        f.Write(json), f.Close()
-    } catch as e {
-        try f.Close()
-        MsgBox("No se pudo guardar la tarea:`n" path "`n`n" e.Message, "Error", "Iconx")
-        return false
-    }
-    return true
+    return false
 }
 
-_LoadFromDisk() {
+_TasksStore_AddToMemory(task) {
     global gTasksData
-    path := TasksStore_Path()
-    if !FileExist(path) {
-        gTasksData := { tasks: [] }
-        return
-    }
-    txt := ""
-    try txt := FileRead(path, "UTF-8")
-    catch {
-        gTasksData := { tasks: [] }
-        return
-    }
-    txt := RegExReplace(txt, "^\xEF\xBB\xBF")
-    v := Trim(txt, "`r`n`t ")
-    data := 0
-    ;try data := Jxon_Load(&v)      ; usa tu Assets\Json.ahk
-    try data := Jxon_Load2(&v)      ; usa tu Assets\Json.ahk    
-    catch {
-        data := 0
-    }
-    if !IsObject(data) || !ObjHasOwnProp(data, "tasks") || !(data.tasks is Array)
-        data := { tasks: [] }
-    ; normalizar
-    for t in data.tasks
-        _EnsureTaskDefaults(t)
-    gTasksData := data
-}
-
-TasksStore_SaveNow() {
-    ; 1) persistir cada tarea a su propio archivo (mantiene estado actualizado)
-    for t in TasksStore_All()
-        _TasksStore_Persist(t)
-    ; 2) (opcional) snapshot agregado tasks.json como respaldo
-    global gTasksData
-    path := TasksStore_Path()
-    json := _DumpJson(gTasksData)
-    f := FileOpen(path, "w", "UTF-8")
-    f.Write(json), f.Close()
+    gTasksData.tasks.Push(task)
 }
 
 _FindById(id) {
@@ -269,7 +409,6 @@ _FindById(id) {
             return t
     return 0
 }
-
 
 _EnsureTaskDefaults(t) {
     t := _AsMap(t)
@@ -282,19 +421,25 @@ _EnsureTaskDefaults(t) {
     if !t.Has("completedAt") t["completedAt"] := ""
     if !t.Has("createdAt")   t["createdAt"] := _NowString()
     if !t.Has("updatedAt")   t["updatedAt"] := t["createdAt"]
-    ; scheduler helpers
+    ; helpers scheduler
     if !t.Has("lastDateRun") t["lastDateRun"] := ""   ; YYYY-MM-DD
     if !t.Has("nextRunAt")   t["nextRunAt"] := ""     ; YYYY-MM-DD HH:mm tt
     return t
 }
 
 ; --- Normalizadores/ayudas ----------------------------------------------
+
 _AsMap(x) {
     if (x is Map)
         return x
-    if !IsObject(x)       ; primitivos
+    if !IsObject(x)
         return x
-    ; Object {} -> Map() recursivo
+    if (x is Array) {
+        outA := []
+        for , v in x
+            outA.Push(_AsMap(v))
+        return outA
+    }
     out := Map()
     for k, v in x
         out[k] := _AsMap(v)
@@ -305,56 +450,7 @@ _IsBlank(v) {
     return (!IsObject(v) && Trim(v "") = "")
 }
 
-; ---------- NUEVO: cargar todas las tareas desde /tareas/*.json ----------
-_LoadDirTasks() {
-    global gTasksData
-    arr := []
-    dir := TasksStore_Dir()
-    Loop Files, dir "\*.json" {
-        txt := ""
-        try {
-            txt := FileRead(A_LoopFileFullPath, "UTF-8")
-        } catch {
-            continue
-        }
-        ; quitar BOM si lo hay
-        txt := RegExReplace(txt, "^\xEF\xBB\xBF")
-        v := 0
-        ; primero intentamos el loader de comillas simples (Jxon_Dump)
-        try v := Jxon_Load2(&txt)
-        catch {
-            ; si el archivo tiene JSON estándar (comillas dobles)
-            try v := Jxon_Load(&txt)
-            catch {
-                v := 0
-            }
-        }
-        if !IsObject(v)
-            continue
-
-        t := _AsMap(v)
-        ; si no trae id, usamos el nombre del archivo
-        id := t.Has("id") ? t["id"] : ""
-        if _IsBlank(id) {
-            SplitPath(A_LoopFileFullPath, &name)
-            t["id"] := name
-        }
-        ; completar defaults (crea createdAt si está vacío)
-        _EnsureTaskDefaults(t)
-        ; fallback extra: si sigue sin createdAt, usar hora del archivo
-        if _IsBlank(t["createdAt"]) {
-            try {
-                ts := FileGetTime(A_LoopFileFullPath, "M")
-                t["createdAt"] := FormatTime(ts, "yyyy-MM-dd hh:mm tt")
-            }
-        }
-        arr.Push(t)
-    }
-    gTasksData := { tasks: arr }
-}
-
-
-_NewId() {
+_NewId() {  ; opcional, no usado
     buf := Buffer(16)
     DllCall("ole32\CoCreateGuid", "ptr", buf)
     p := BufToHex(buf)
@@ -371,44 +467,10 @@ BufToHex(buf) {
 }
 
 _NowString() {
-    f := FormatTime(, "yyyy-MM-dd hh:mm tt")
-    return f
+    return FormatTime(, "yyyy-MM-dd hh:mm tt")
 }
 
-; -------- Pequeño dumper JSON (suficiente para nuestro esquema) --------
-_DumpJson(v) {
-    t := Type(v)
-    if (t = "String") {
-        return _Jstr(v)
-    } else if (t = "Integer" || t = "Float") {
-        return v ""
-    } else if (t = "Array") {
-        parts := []
-        for itm in v
-            parts.Push(_DumpJson(itm))
-        return "[" . StrJoin(parts, ",") . "]"
-    } else if (t = "Map" || t = "Object") {
-        parts := []
-        for k,val in v
-            parts.Push(_Jstr(k) ":" _DumpJson(val))
-        return "{" . StrJoin(parts, ",") . "}"
-    } else if (t = "Boolean") {
-        return v ? "true" : "false"
-    } else if (v = "" || v = 0) {
-        ; usar "" para null-like del proyecto
-        return _Jstr("")
-    }
-    return _Jstr(v "")
-}
-
-_Jstr(s) {
-    s := StrReplace(s, "\", "\\")
-    s := StrReplace(s, "`t", "\t")
-    s := StrReplace(s, "`r", "\r")
-    s := StrReplace(s, "`n", "\n")
-    s := StrReplace(s, "''", "\''")
-    return "''" s "''"
-}
+; -------- Utilidad simple de join para strings ---------------------------
 
 StrJoin(arr, sep:=",") {
     out := ""
@@ -416,4 +478,3 @@ StrJoin(arr, sep:=",") {
         out .= (i>1 ? sep : "") v
     return out
 }
-
