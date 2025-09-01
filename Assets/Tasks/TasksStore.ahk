@@ -92,19 +92,21 @@ _LoadJsonFile(path) {
     if !IsObject(data) || !ObjHasOwnProp(data, "tasks") || !(data.tasks is Array)
         data := { tasks: [] }
 
-    ; normalizar
-    for t in data.tasks
-        _EnsureTaskDefaults(t)
+    ; normalizar (y reescribir dentro del array)
+    for i, t in data.tasks
+        data.tasks[i] := _EnsureTaskDefaults(t)
 
     return data
 }
 
 _SaveJsonFile(path, data) {
-    ; Escribimos con dumper propio (JSON válido con comillas dobles)
-    json := _DumpJson(data)
-    f := FileOpen(path, "w", "UTF-8")
+    ; Serialización robusta (sin depender de JXON al escribir)
+    json := _DumpJsonStrict(data)
+    f := 0
     try {
-        f.Write(json), f.Close()
+        f := FileOpen(path, "w", "UTF-8")
+        f.Write(json)
+        f.Close()
     } catch as e {
         try f.Close()
         MsgBox("No se pudo guardar:`n" path "`n`n" e.Message, "Error", "Iconx")
@@ -154,7 +156,7 @@ _DumpJson(v) {
     return _JQ(v "")
 }
 
-_JQ(s) {
+_JQ_v0(s) {
     ; Escapes básicos JSON
     s := StrReplace(s, "\", "\\")
     s := StrReplace(s, '""', '\""')
@@ -162,6 +164,16 @@ _JQ(s) {
     s := StrReplace(s, "`n", "\n")
     s := StrReplace(s, "`t", "\t")
     return '""' s '""'
+}
+
+_JQ(s) {
+    ; Escapes básicos JSON
+    s := StrReplace(s, "\", "\\")
+    s := StrReplace(s, '"', '\"')
+    s := StrReplace(s, '`r', "\r")
+    s := StrReplace(s, "`n", "\n")
+    s := StrReplace(s, "`t", "\t")
+    return '"' s '"'
 }
 
 _OwnPropNames(obj) {
@@ -350,7 +362,7 @@ _TasksStore_NewId() {
 }
 
 ; Convierte recursivamente cualquier estructura (Object/Array/Map)
-; a algo serializable por JXON (Map y Array).
+; a algo serializable: se deja para compat con otras funciones de lectura.
 _TasksStore_ToJsonReady(x) {
     if !IsObject(x)
         return x
@@ -363,7 +375,7 @@ _TasksStore_ToJsonReady(x) {
         return out
     }
 
-    ; Map() u Object() -> {} (plain object para JXON)
+    ; Map() u Object() -> {} (plain object)
     out := {}
     ok := true
     try {
@@ -477,4 +489,59 @@ StrJoin(arr, sep:=",") {
     for i,v in arr
         out .= (i>1 ? sep : "") v
     return out
+}
+
+; ========== SERIALIZADOR JSON ROBUSTO (doble comilla) ==========
+_DumpJsonStrict(v) {
+    t := Type(v)
+    if (t = "String") {
+        return _dq(_esc(v))
+    } else if (t = "Integer" || t = "Float") {
+        return v ""
+    } else if (t = "Array") {
+        parts := []
+        for itm in v
+            parts.Push(_DumpJsonStrict(itm))
+        return "[" . StrJoin(parts, ",") . "]"
+    } else if (t = "Map" || t = "Object") {
+        parts := []
+        ; Intentar enumeración directa
+        ok := true
+        try {
+            for k,val in v
+                parts.Push(_dq(_esc(k "")) ":" _DumpJsonStrict(val))
+        } catch {
+            ok := false
+        }
+        if !ok {
+            ; Fallback: solo props propias
+            try {
+                for k in ObjOwnProps(v) {
+                    temp := ""
+                    try temp := v.%k%
+                    parts.Push(_dq(_esc(k "")) ":" _DumpJsonStrict(temp))
+                }
+            }
+        }
+        return "{" . StrJoin(parts, ",") . "}"
+    } else if (t = "Boolean") {
+        return v ? "true" : "false"
+    } else if (v = "" || v = 0) {
+        ; usa null para vacíos genéricos
+        return "null"
+    }
+    ; fallback: string
+    return _dq(_esc(v ""))
+}
+
+_esc(s) {
+    s := StrReplace(s, "\", "\\")
+    s := StrReplace(s, '""', '\""')
+    s := StrReplace(s, "`t", "\t")
+    s := StrReplace(s, "`r", "\r")
+    s := StrReplace(s, "`n", "\n")
+    return s
+}
+_dq(s) {
+    return '""' s '""'
 }
